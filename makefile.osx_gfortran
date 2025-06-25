@@ -7,7 +7,7 @@ FFLAGS = -O2 -pg -fcheck=bounds
 
 LINK = -pg
 #LINK = -static
-#run the code with ./bader ../aflow.CHGCAR_sum -cp
+#run the code with ./bader ./aflow.CHGCAR_sum -cp
 # view profile with 
 # gprof ./bader gmon.out > report.txt
 
