@@ -2,11 +2,14 @@
 
 FC = gfortran
 
-#FFLAGS = -O2 -pg -fcheck=bounds
-FFLAGS = -O2 
+FFLAGS = -O2 -pg -fcheck=bounds
+#FFLAGS = -O2
 
 LINK = -pg
 #LINK = -static
+#run the code with ./bader ../aflow.CHGCAR_sum -cp
+# view profile with 
+# gprof ./bader gmon.out > report.txt
 
 OBJS = kind_mod.o       \
        matrix_mod.o     \

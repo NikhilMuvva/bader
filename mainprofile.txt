@@ -1,0 +1,59 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 72.66     74.67    74.67  6033580     0.00     0.00  __critpoint_mod_MOD_getcpcl
+ 12.34     87.35    12.68 2499662438     0.00     0.00  __charge_mod_MOD_rho_val
+  5.42     92.92     5.57 126759683     0.00     0.00  __critpoint_mod_MOD_readstatic
+  2.30     95.28     2.36 1781877430     0.00     0.00  __charge_mod_MOD_pbc
+  1.99     97.33     2.05 243537087     0.00     0.00  __bader_mod_MOD_max_neargrid
+  1.07     98.43     1.10        1     1.10     6.26  __bader_mod_MOD_bader_calc
+  0.79     99.24     0.81  5832000     0.00     0.00  __bader_mod_MOD_is_atm_edge
+  0.73     99.99     0.75                             _init
+  0.63    100.64     0.65 25005058     0.00     0.00  __charge_mod_MOD_rho_grad_dir
+  0.61    101.27     0.63    42906     0.00     0.00  __critpoint_mod_MOD_ringascension
+  0.55    101.84     0.57  5832000     0.00     0.00  __bader_mod_MOD_is_vol_edge
+  0.22    102.07     0.23 72545197     0.00     0.00  __bader_mod_MOD_max_offgrid
+  0.14    102.21     0.14 11830331     0.00     0.00  __matrix_mod_MOD_inverse
+  0.11    102.32     0.11  1510107     0.00     0.00  __charge_mod_MOD_is_max
+  0.10    102.42     0.10  1213926     0.00     0.00  __charge_mod_MOD_dpbc_car
+  0.09    102.51     0.09 11830331     0.00     0.00  __matrix_mod_MOD_adjoint
+  0.08    102.59     0.08 11830331     0.00     0.00  __matrix_mod_MOD_determinant
+  0.07    102.66     0.07        1     0.07     1.16  __bader_mod_MOD_bader_mindist
+  0.03    102.69     0.03  6063153     0.00     0.00  __charge_mod_MOD_pbc_r_lat
+  0.03    102.72     0.03      420     0.00     0.00  __critpoint_mod_MOD_ascension_new
+  0.03    102.75     0.03        1     0.03     0.03  __bader_mod_MOD_cal_atomic_vol
+  0.01    102.76     0.01    36927     0.00     0.00  __jacobi_mod_MOD_jacobi_eigenvalue
+  0.01    102.77     0.01        1     0.01     0.01  __chgcar_mod_MOD_read_charge_chgcar
+  0.00    102.77     0.00    61776     0.00     0.00  __bader_mod_MOD_step_ongrid
+  0.00    102.77     0.00    36927     0.00     0.00  __charge_mod_MOD_rho_grad
+  0.00    102.77     0.00    35751     0.00     0.00  __critpoint_mod_MOD_recorddensitydescendcage
+  0.00    102.77     0.00      432     0.00     0.00  __critpoint_mod_MOD_cagesearch
+  0.00    102.77     0.00       78     0.00     0.00  __charge_mod_MOD_lat2car
+  0.00    102.77     0.00       78     0.00     0.00  __charge_mod_MOD_lat2dir
+  0.00    102.77     0.00        3     0.00     0.00  __matrix_mod_MOD_matrix_volume
+  0.00    102.77     0.00        2     0.00     0.00  __bader_mod_MOD_reallocate_volpos
+  0.00    102.77     0.00        1     0.00   102.02  MAIN__
+  0.00    102.77     0.00        1     0.00    94.59  __automatedcp_mod_MOD_autocp
+  0.00    102.77     0.00        1     0.00     0.00  __automatedcp_mod_MOD_checkexhaustion
+  0.00    102.77     0.00        1     0.00     0.00  __bader_mod_MOD_assign_chg2atom
+  0.00    102.77     0.00        1     0.00     0.00  __bader_mod_MOD_bader_output
+  0.00    102.77     0.00        1     0.00    94.59  __critpoint_mod_MOD_critpoint_find
+  0.00    102.77     0.00        1     0.00     0.00  __critpoint_mod_MOD_findnnlayers
+  0.00    102.77     0.00        1     0.00     0.00  __critpoint_mod_MOD_outputnetwork
+  0.00    102.77     0.00        1     0.00     0.00  __critpoint_mod_MOD_outputparameters
+  0.00    102.77     0.00        1     0.00     0.00  __critpoint_mod_MOD_phruleexam
+  0.00    102.77     0.00        1     0.00     0.00  __critpoint_mod_MOD_visallcp
+  0.00    102.77     0.00        1     0.00     0.01  __io_mod_MOD_read_charge
+  0.00    102.77     0.00        1     0.00     0.00  __options_mod_MOD_get_options
+
+ %         the percentage of the total running time of the
+time       program used by this function.
+
+cumulative a running sum of the number of seconds accounted
+ seconds   for by this function and those listed above it.
+
+ self      the number of seconds accounted for by this
+seconds    function alone.  This is the major sort for this
+"report.txt" 443L, 29285B                                                                                                                                                  1,1           Top
