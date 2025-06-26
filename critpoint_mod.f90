@@ -71,7 +71,7 @@
     TYPE(cpc), ALLOCATABLE :: cpcl_thread(:)
     INTEGER :: thread_id
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
-    
+    LOGICAL :: skip
 
     ! Initialize OpenMP variables
     cptnum = 0
@@ -105,7 +105,6 @@
               
               IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
 
-                LOGICAL :: skip
                 skip = .FALSE.
                 ! Proximity check (must be critical since cpcl is shared)
                 !$OMP CRITICAL
