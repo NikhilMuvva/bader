@@ -76,8 +76,12 @@
     ! Initialize OpenMP variables
     cptnum = 0
     num_threads = omp_get_max_threads()
-    max_per_thread = 100000
+    max_per_thread = 10000
     CALL omp_set_num_threads(num_threads)
+    
+    PRINT *, "Starting GetCPCL_Multithreaded with ", num_threads, " threads"
+    PRINT *, "max_per_thread = ", max_per_thread
+    PRINT *, "Total memory per thread = ", max_per_thread * 8, " bytes"  ! Rough estimate
 
     !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,cpcl_thread, cptnum_thread, thread_id)
       thread_id = omp_get_thread_num() + 1
@@ -139,6 +143,7 @@
         END DO
       !$OMP END CRITICAL
       
+      PRINT *, "Thread ", thread_id, " finished with ", cptnum_thread, " candidates"
       DEALLOCATE(cpcl_thread)
     !$OMP END PARALLEL
     
