@@ -98,12 +98,18 @@
               
               IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
                 ! Thread-safe proximity checking
+                LOGICAL :: should_skip
+                should_skip = .FALSE.
+                
                 !$OMP CRITICAL
                   IF (ProxyToCPCandidate(p,opts,cpcl,cptnum,chg)) THEN
-                    !$OMP END CRITICAL
-                    CYCLE
+                    should_skip = .TRUE.
                   END IF
                 !$OMP END CRITICAL
+                
+                IF (should_skip) THEN
+                  CYCLE
+                END IF
                 
                 ! Atomic increment of candidate counter
                 !$OMP ATOMIC
@@ -116,7 +122,9 @@
                     IF (cptnum > 100000) THEN
                       PRINT *, "ERROR: Too many searches required. Aborting."
                       !$OMP END CRITICAL
-                      EXIT
+                      ! Exit the parallel region entirely
+                      !$OMP END PARALLEL
+                      RETURN
                     END IF
                     PRINT *, 'expanding cpcl size'
                     ALLOCATE(cpclt(cptnum))
