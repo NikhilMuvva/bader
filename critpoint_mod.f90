@@ -104,6 +104,13 @@
               tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
               
               IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
+                ! Proximity check (must be critical since cpcl is shared)
+                !$OMP CRITICAL
+                IF (ProxyToCPCandidate(p, opts, cpcl, cptnum, chg)) THEN
+                  !$OMP END CRITICAL
+                  CYCLE
+                END IF
+                !$OMP END CRITICAL
                 ! Check if we need to expand thread-local array
                 IF (cptnum_thread >= max_per_thread) THEN
                   PRINT *, "ERROR: Thread ", thread_id, " exceeded max_per_thread. Aborting."
