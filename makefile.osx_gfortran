@@ -2,10 +2,10 @@
 
 FC = gfortran
 
-FFLAGS = -O2 -pg -fcheck=bounds
-#FFLAGS = -O2
+FFLAGS = -O2 -pg -fcheck=bounds -fopenmp
+#FFLAGS = -O2 -fopenmp
 
-LINK = -pg
+LINK = -pg -fopenmp
 #LINK = -static
 #run the code with ./bader ./aflow.CHGCAR_sum -cp
 # view profile with 

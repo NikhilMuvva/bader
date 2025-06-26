@@ -12,6 +12,7 @@
     USE weight_mod
     USE dsyevj3_mod
     USE jacobi_mod
+    USE omp_lib
     IMPLICIT NONE
 
     PRIVATE 
@@ -52,6 +53,97 @@
 !NOTE: this subroutine should be called after refine_edge
 !      in order to restrict the calculation to edge points
 !-----------------------------------------------------------------------------------!
+  SUBROUTINE GetCPCL_Multithreaded(bdr,chg,cpl,cpcl,opts,cptnum)
+    TYPE(bader_obj) :: bdr
+    TYPE(charge_obj) :: chg
+    TYPE(options_obj) :: opts
+    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl,cpcl
+    
+    REAL(q2), DIMENSION(3,3) :: hessianMatrix
+    REAL(q2), DIMENSION(3) :: tem,trueR,grad
+
+    INTEGER, DIMENSION(3) :: p
+    INTEGER :: n1,n2,n3,cptnum,i
+
+    ! Variables for OpenMP parallelism
+    INTEGER :: num_threads, max_per_thread
+    INTEGER :: cptnum_thread
+    TYPE(cpc), ALLOCATABLE :: cpcl_thread(:)
+    INTEGER :: thread_id
+    TYPE(cpc), ALLOCATABLE :: cpclt(:)
+    
+
+    ! Initialize OpenMP variables
+    cptnum = 0
+    num_threads = omp_get_max_threads()
+    max_per_thread = 100000
+    CALL omp_set_num_threads(num_threads)
+
+    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,cpcl_thread, cptnum_thread, thread_id)
+      thread_id = omp_get_thread_num() + 1
+      PRINT *, "Thread ", thread_id, " starting work"
+      ALLOCATE(cpcl_thread(max_per_thread))
+      cptnum_thread = 0
+      
+      ! Loop over all points in the grid, split into threads
+      !$OMP DO
+        DO n1 = 1, chg%npts(1)
+          DO n2 = 1, chg%npts(2)
+            DO n3 = 1, chg%npts(3)
+              ! check to see if this point is in the vacuum
+              IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) THEN
+                CYCLE
+              END IF
+              
+              p = (/n1,n2,n3/)
+              trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
+              tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
+              
+              IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
+                ! Check if we need to expand thread-local array
+                IF (cptnum_thread >= max_per_thread) THEN
+                  PRINT *, "ERROR: Thread ", thread_id, " exceeded max_per_thread. Aborting."
+                  EXIT
+                END IF
+                
+                ! Store candidate in thread-local array
+                cptnum_thread = cptnum_thread + 1
+                cpcl_thread(cptnum_thread)%ind = (/n1,n2,n3/)
+                cpcl_thread(cptnum_thread)%grad = grad
+                cpcl_thread(cptnum_thread)%hasProxy = .FALSE.
+                cpcl_thread(cptnum_thread)%r = tem
+              END IF
+            END DO
+          END DO
+        END DO
+      !$OMP END DO
+      
+      !$OMP CRITICAL
+        ! Merge thread results into main array
+        DO i = 1, cptnum_thread
+          cptnum = cptnum + 1
+          ! Check if main array needs expansion
+          IF (cptnum > SIZE(cpcl)) THEN
+            ALLOCATE(cpclt(cptnum))
+            DO n1 = 1, cptnum - 1
+              cpclt(n1) = cpcl(n1)
+            END DO
+            DEALLOCATE(cpcl)
+            ALLOCATE(cpcl(cptnum * 2))
+            DO n1 = 1, cptnum - 1
+              cpcl(n1) = cpclt(n1)
+            END DO
+            DEALLOCATE(cpclt)
+          END IF
+          cpcl(cptnum) = cpcl_thread(i)
+        END DO
+      !$OMP END CRITICAL
+      
+      DEALLOCATE(cpcl_thread)
+    !$OMP END PARALLEL
+    
+  END SUBROUTINE GetCPCL_Multithreaded
+
 
   SUBROUTINE GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
     TYPE(bader_obj) :: bdr
@@ -461,7 +553,7 @@
       ELSE 
         ! Loop through every grid point once and collect a list of points to start
         ! CP searching trajectories into cpcl, the CP candidate list.
-        CALL GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
+        CALL GetCPCL_Multithreaded(bdr,chg,cpl,cpcl,opts,cptnum)
         IF (cptnum > 100000) THEN
           stat = 0
         ELSE 
