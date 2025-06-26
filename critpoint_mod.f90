@@ -83,7 +83,7 @@
     PRINT *, "max_per_thread = ", max_per_thread
     PRINT *, "Total memory per thread = ", max_per_thread * 8, " bytes"  ! Rough estimate
 
-    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,cpcl_thread, cptnum_thread, thread_id,should_skip)
+    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,cpcl_thread, cptnum_thread, thread_id)
       thread_id = omp_get_thread_num() + 1
       PRINT *, "Thread ", thread_id, " starting work"
       ALLOCATE(cpcl_thread(max_per_thread))
@@ -105,19 +105,11 @@
               
               IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
                 ! Proximity check (must be critical since cpcl is shared)
-                LOGICAL :: should_skip
-                should_skip = .FALSE.
-
                 !$OMP CRITICAL
                 IF (ProxyToCPCandidate(p, opts, cpcl, cptnum, chg)) THEN
-                  should_skip = .TRUE.
-                END IF
-                !$OMP END CRITICAL
-                
-                IF (should_skip) THEN
                   CYCLE
                 END IF
-                
+                !$OMP END CRITICAL
                 ! Check if we need to expand thread-local array
                 IF (cptnum_thread >= max_per_thread) THEN
                   PRINT *, "ERROR: Thread ", thread_id, " exceeded max_per_thread. Aborting."
