@@ -69,6 +69,7 @@
     INTEGER :: num_threads
     INTEGER :: thread_id
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
+    LOGICAL :: should_skip
     
 
     ! Initialize OpenMP variables
@@ -78,7 +79,7 @@
     
     PRINT *, "Starting GetCPCL_Multithreaded with ", num_threads, " threads"
 
-    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id)
+    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,should_skip)
       thread_id = omp_get_thread_num() + 1
       PRINT *, "Thread ", thread_id, " starting work"
       
@@ -98,7 +99,6 @@
               
               IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
                 ! Thread-safe proximity checking
-                LOGICAL :: should_skip
                 should_skip = .FALSE.
                 
                 !$OMP CRITICAL
