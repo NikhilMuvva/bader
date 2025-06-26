@@ -1,4 +1,5 @@
   MODULE critpoint_mod
+    USE omp_lib
     USE kind_mod
     USE matrix_mod
     USE bader_mod
@@ -146,38 +147,57 @@
 
     INTEGER, DIMENSION(4) :: ucpCounts
     INTEGER, DIMENSION(2) :: connectedAtoms
-    INTEGER :: i,cptnum,ucptnum       
+    INTEGER :: i,cptnum,ucptnum 
+
+    ! ucptnum_local = 0
+
+    !$OMP PARALLEL DO PRIVATE(i, temcap, temscale, temnormcap, trueR, interpolHessian, connectedAtoms) &
+    !$OMP SHARED(cpcl, cpl, bdr, chg, opts, cptnum, ucpCounts, ucptnum) DEFAULT(SHARED)
+
     DO i = 1, cptnum
       cpcl(i)%isunique = .FALSE.
-      temcap = (/1.,1.,1./)
-      temscale = (/1.,1.,1./)
-      temnormcap = 1.
+      temcap = (/1.0_q2, 1.0_q2, 1.0_q2/)
+      temscale = (/1.0_q2, 1.0_q2, 1.0_q2/)
+      temnormcap = 1.0_q2
+
       IF (opts%gradMode) THEN
          !uses GradientDescend instead of NRTFGP          
-         CALL GradientDescend(bdr,chg,opts,trueR,cpcl(i)%ind,&
-         cpcl(i)%isUnique,3000)
+         CALL GradientDescend(bdr,chg,opts,trueR,cpcl(i)%ind,&cpcl(i)%isUnique,3000)
       ELSE
          ! Begins newton raphson validation process
-         CALL NRTFGP(bdr,chg,opts,trueR,&
-         cpcl(i)%isUnique,cpcl(i)%r,cpcl(i)%ind,&
-         1000)
+         CALL NRTFGP(bdr,chg,opts,trueR,&cpcl(i)%isUnique,cpcl(i)%r,cpcl(i)%ind,&1000)
       END IF
-      IF (cpcl(i)%isUnique ) THEN
+
+!      IF (cpcl(i)%isUnique ) THEN
         !CALL MakeCPRoster(cpRoster,i,truer) !not sure what this does
+!       cpcl(i)%trueind = trueR
+!        interpolHessian = trilinear_interpol_hes(nnHes,distance)
+
+!        !$OMP CRITICAL
+!        ucptnum = ucptnum + 1
+!        interpolHessian = CDHessianR(truer,chg)
+!        CALL RecordCPR(truer,chg,cpl,ucptnum,connectedAtoms, ucpCounts, &
+!          opts, interpolHessian, &
+!          cpcl(i)%ind)
+!        CYCLE
+!      ELSE
+!        CYCLE
+!      END IF
+!      CALL pbc_r_lat(trueR,chg%npts)
+!    ! moving on to the next critical pint candidate
+!    END DO
+!    END SUBROUTINE SearchWithCPCL
+      IF (cpcl(i)%isUnique) THEN
         cpcl(i)%trueind = trueR
-        interpolHessian = trilinear_interpol_hes(nnHes,distance)
+        interpolHessian = CDHessianR(trueR, chg)
+
+        !$OMP CRITICAL
         ucptnum = ucptnum + 1
-        interpolHessian = CDHessianR(truer,chg)
-        CALL RecordCPR(truer,chg,cpl,ucptnum,connectedAtoms, ucpCounts, &
-          opts, interpolHessian, &
-          cpcl(i)%ind)
-        CYCLE
-      ELSE
-        CYCLE
+        CALL RecordCPR(trueR, chg, cpl, ucptnum, connectedAtoms, ucpCounts, opts, interpolHessian, cpcl(i)%ind)
+        !$OMP END CRITICAL
       END IF
-      CALL pbc_r_lat(trueR,chg%npts)
-    ! moving on to the next critical pint candidate
     END DO
+  !$OMP END PARALLEL DO
   END SUBROUTINE SearchWithCPCL
 
   ! This subroutine reads in a list of CPs and their types, runs it through ReduceCP and PHRuleExam
