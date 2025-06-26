@@ -162,10 +162,13 @@
 
       IF (opts%gradMode) THEN
          !uses GradientDescend instead of NRTFGP          
-         CALL GradientDescend(bdr,chg,opts,trueR,cpcl(i)%ind,&cpcl(i)%isUnique,3000)
+         CALL GradientDescend(bdr,chg,opts,trueR,cpcl(i)%ind,&
+              cpcl(i)%isUnique,3000)
       ELSE
          ! Begins newton raphson validation process
-         CALL NRTFGP(bdr,chg,opts,trueR,&cpcl(i)%isUnique,cpcl(i)%r,cpcl(i)%ind,&1000)
+         CALL NRTFGP(bdr,chg,opts,trueR,&
+             cpcl(i)%isUnique,cpcl(i)%r,cpcl(i)%ind,&
+             1000)
       END IF
 
 !      IF (cpcl(i)%isUnique ) THEN
