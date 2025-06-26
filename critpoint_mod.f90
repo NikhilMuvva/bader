@@ -194,6 +194,7 @@
                 EXIT OUTER
               END IF
               PRINT *, 'expanding cpcl size'
+              PRINT *, 'cptnum is ', cptnum
               ALLOCATE(cpclt(cptnum + 1))
               DO i = 1, cptnum - 1
                 cpclt(i) = cpcl(i)
