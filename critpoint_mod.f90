@@ -134,74 +134,49 @@
     END DO OUTER
   END SUBROUTINE GetCPCL
 
-  SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
-    TYPE(bader_obj) :: bdr
-    TYPE(charge_obj) :: chg
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl,cpl
-    TYPE(options_obj) :: opts
+ SUBROUTINE SearchWithCPCL(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
+  USE omp_lib
+  TYPE(bader_obj) :: bdr
+  TYPE(charge_obj) :: chg
+  TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl, cpl
+  TYPE(options_obj) :: opts
 
-    REAL(q2), DIMENSION(8,3,3) :: nnHes
-    REAL(q2), DIMENSION(3,3) :: interpolHessian
-    REAL(q2),DIMENSION(3) :: temcap,temscale,trueR,distance
-    REAL(q2) :: temnormcap
+  REAL(q2), DIMENSION(8,3,3) :: nnHes
+  REAL(q2), DIMENSION(3,3) :: interpolHessian
+  REAL(q2), DIMENSION(3) :: temcap, temscale, trueR, distance
+  REAL(q2) :: temnormcap
 
-    INTEGER, DIMENSION(4) :: ucpCounts
-    INTEGER, DIMENSION(2) :: connectedAtoms
-    INTEGER :: i,cptnum,ucptnum 
+  INTEGER, DIMENSION(4) :: ucpCounts
+  INTEGER, DIMENSION(2) :: connectedAtoms
+  INTEGER :: i, cptnum, ucptnum
 
-    ! ucptnum_local = 0
+  !$OMP PARALLEL DO PRIVATE(i, temcap, temscale, temnormcap, trueR, interpolHessian, connectedAtoms) &
+  !$OMP SHARED(cpcl, cpl, bdr, chg, opts, cptnum, ucpCounts, ucptnum) DEFAULT(SHARED)
+  DO i = 1, cptnum
+    cpcl(i)%isunique = .FALSE.
+    temcap = (/1.0_q2, 1.0_q2, 1.0_q2/)
+    temscale = (/1.0_q2, 1.0_q2, 1.0_q2/)
+    temnormcap = 1.0_q2
 
-    !$OMP PARALLEL DO PRIVATE(i, temcap, temscale, temnormcap, trueR, interpolHessian, connectedAtoms) &
-    !$OMP SHARED(cpcl, cpl, bdr, chg, opts, cptnum, ucpCounts, ucptnum) DEFAULT(SHARED)
+    IF (opts%gradMode) THEN
+      CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
+    ELSE
+      CALL NRTFGP(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
+    END IF
 
-    DO i = 1, cptnum
-      cpcl(i)%isunique = .FALSE.
-      temcap = (/1.0_q2, 1.0_q2, 1.0_q2/)
-      temscale = (/1.0_q2, 1.0_q2, 1.0_q2/)
-      temnormcap = 1.0_q2
+    IF (cpcl(i)%isUnique) THEN
+      cpcl(i)%trueind = trueR
+      interpolHessian = CDHessianR(trueR, chg)
 
-      IF (opts%gradMode) THEN
-        !uses GradientDescend instead of NRTFGP          
-        CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, &
-                     cpcl(i)%isUnique, 3000)
-      ELSE
-        ! Begins newton raphson validation process
-        CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, &
-                     cpcl(i)%isUnique, 3000)
-
-      END IF
-
-!      IF (cpcl(i)%isUnique ) THEN
-        !CALL MakeCPRoster(cpRoster,i,truer) !not sure what this does
-!       cpcl(i)%trueind = trueR
-!        interpolHessian = trilinear_interpol_hes(nnHes,distance)
-
-!        !$OMP CRITICAL
-!        ucptnum = ucptnum + 1
-!        interpolHessian = CDHessianR(truer,chg)
-!        CALL RecordCPR(truer,chg,cpl,ucptnum,connectedAtoms, ucpCounts, &
-!          opts, interpolHessian, &
-!          cpcl(i)%ind)
-!        CYCLE
-!      ELSE
-!        CYCLE
-!      END IF
-!      CALL pbc_r_lat(trueR,chg%npts)
-!    ! moving on to the next critical pint candidate
-!    END DO
-!    END SUBROUTINE SearchWithCPCL
-      IF (cpcl(i)%isUnique) THEN
-        cpcl(i)%trueind = trueR
-        interpolHessian = CDHessianR(trueR, chg)
-
-        !$OMP CRITICAL
-        ucptnum = ucptnum + 1
-        CALL RecordCPR(trueR, chg, cpl, ucptnum, connectedAtoms, ucpCounts, opts, interpolHessian, cpcl(i)%ind)
-        !$OMP END CRITICAL
-      END IF
-    END DO
+      !$OMP CRITICAL
+      ucptnum = ucptnum + 1
+      CALL RecordCPR(trueR, chg, cpl, ucptnum, connectedAtoms, ucpCounts, opts, interpolHessian, cpcl(i)%ind)
+      !$OMP END CRITICAL
+    END IF
+  END DO
   !$OMP END PARALLEL DO
-  END SUBROUTINE SearchWithCPCL
+END SUBROUTINE SearchWithCPCL
+
 
   ! This subroutine reads in a list of CPs and their types, runs it through ReduceCP and PHRuleExam
   SUBROUTINE StaticCheck(bdr,chg,opts,ions)
