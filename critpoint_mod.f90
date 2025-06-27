@@ -127,13 +127,13 @@
                 cpcl_thread(cptnum_thread)%r = tem
 
 
-                PRINT *, "Thread", thread_id, "accepted", cptnum_thread, "points"
+                WRITE(*,*) "Thread", thread_id, "accepted point at", cpcl_thread(i)%ind
               END IF
             END DO
           END DO
         END DO
       !$OMP END DO
-      
+      PRINT *, "Thread", thread_id, "accepted", cptnum_thread, "points"
       !$OMP CRITICAL
         ! Merge thread results into main array
         DO i = 1, cptnum_thread
