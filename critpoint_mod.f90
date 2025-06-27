@@ -127,7 +127,7 @@
                 cpcl_thread(cptnum_thread)%r = tem
 
 
-                WRITE(*,*) "Thread", thread_id, "accepted point at", cpcl_thread(i)%ind
+                WRITE(*,*) "Thread", thread_id, "accepted point at", cpcl_thread(cptnum_thread)%ind
               END IF
             END DO
           END DO
