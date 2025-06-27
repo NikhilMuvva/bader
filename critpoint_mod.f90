@@ -79,6 +79,12 @@
     max_per_thread = 10000
     CALL omp_set_num_threads(num_threads)
     
+    ! Pre-allocate a large enough array to avoid expansion during merging
+    IF (SIZE(cpcl) < num_threads * max_per_thread) THEN
+      DEALLOCATE(cpcl)
+      ALLOCATE(cpcl(num_threads * max_per_thread))
+    END IF
+    
     PRINT *, "Starting GetCPCL_Multithreaded with ", num_threads, " threads"
     PRINT *, "max_per_thread = ", max_per_thread
     PRINT *, "Total memory per thread = ", max_per_thread * 8, " bytes"  ! Rough estimate
