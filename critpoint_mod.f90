@@ -54,117 +54,106 @@
 !      in order to restrict the calculation to edge points
 !-----------------------------------------------------------------------------------!
   SUBROUTINE GetCPCL_Multithreaded(bdr,chg,cpl,cpcl,opts,cptnum)
-    TYPE(bader_obj) :: bdr
-    TYPE(charge_obj) :: chg
-    TYPE(options_obj) :: opts
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl,cpcl
-    
-    REAL(q2), DIMENSION(3,3) :: hessianMatrix
-    REAL(q2), DIMENSION(3) :: tem,trueR,grad
+  TYPE(bader_obj) :: bdr
+  TYPE(charge_obj) :: chg
+  TYPE(options_obj) :: opts
+  TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl,cpcl
 
-    INTEGER, DIMENSION(3) :: p
-    INTEGER :: n1,n2,n3,cptnum,i
+  REAL(q2), DIMENSION(3,3) :: hessianMatrix
+  REAL(q2), DIMENSION(3) :: tem,trueR,grad
 
-    ! Variables for OpenMP parallelism
-    INTEGER :: num_threads, max_per_thread
-    INTEGER :: cptnum_thread
-    TYPE(cpc), ALLOCATABLE :: cpcl_thread(:)
-    INTEGER :: thread_id
-    TYPE(cpc), ALLOCATABLE :: cpclt(:)
-    LOGICAL :: skip
+  INTEGER, DIMENSION(3) :: p
+  INTEGER :: n1,n2,n3,cptnum,i
 
-    INTEGER, ALLOCATABLE :: thread_counts(:)
-    INTEGER :: total_candidates, offset, local_index
+  ! Variables for OpenMP parallelism
+  INTEGER :: num_threads, max_per_thread
+  INTEGER :: cptnum_thread
+  TYPE(cpc), ALLOCATABLE :: cpcl_thread(:)
+  INTEGER :: thread_id
+  TYPE(cpc), ALLOCATABLE :: cpclt(:)
+  LOGICAL :: skip
 
-    ! Initialize OpenMP variables
-    cptnum = 0
-    num_threads = omp_get_max_threads()
-    max_per_thread = 30000
-    CALL omp_set_num_threads(num_threads)
-    
-    PRINT *, "Starting GetCPCL_Multithreaded with ", num_threads, " threads"
-    PRINT *, "max_per_thread = ", max_per_thread
-    PRINT *, "Total memory per thread = ", max_per_thread * 8, " bytes"  ! Rough estimate
+  ! Initialize OpenMP variables
+  cptnum = 0
+  num_threads = omp_get_max_threads()
+  max_per_thread = 10000
+  CALL omp_set_num_threads(num_threads)
 
-    ! First pass: count candidates per thread
-ALLOCATE(thread_counts(num_threads))
-thread_counts = 0
+  PRINT *, "Starting GetCPCL_Multithreaded with ", num_threads, " threads"
+  PRINT *, "max_per_thread = ", max_per_thread
+  PRINT *, "Total memory per thread = ", max_per_thread * 8, " bytes"  ! Rough estimate
 
-!$OMP PARALLEL PRIVATE(n1,n2,n3,p,trueR,tem,grad,thread_id) SHARED(thread_counts)
-  thread_id = omp_get_thread_num() + 1
-  !$OMP DO
-    DO n1 = 1, chg%npts(1)
-      DO n2 = 1, chg%npts(2)
-        DO n3 = 1, chg%npts(3)
-          IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) CYCLE
-          p = (/n1,n2,n3/)
-          trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
-          tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
-          IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
-            !$OMP CRITICAL
-            IF (.NOT. ProxyToCPCandidate(p, opts, cpcl, cptnum, chg)) THEN
-              thread_counts(thread_id) = thread_counts(thread_id) + 1
+  !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,cpcl_thread, cptnum_thread, thread_id, skip)
+    thread_id = omp_get_thread_num() + 1
+    PRINT *, "Thread ", thread_id, " starting work"
+    ALLOCATE(cpcl_thread(max_per_thread))
+    cptnum_thread = 0
+
+    !$OMP DO
+      DO n1 = 1, chg%npts(1)
+        DO n2 = 1, chg%npts(2)
+          DO n3 = 1, chg%npts(3)
+            ! check to see if this point is in the vacuum
+            IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) THEN
+              CYCLE
             END IF
-            !$OMP END CRITICAL
-          END IF
+
+            p = (/n1,n2,n3/)
+            trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
+            tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
+
+            IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
+
+              skip = .FALSE.
+              !$OMP CRITICAL
+                IF (ProxyToCPCandidate(p, opts, cpcl, cptnum, chg)) THEN
+                  skip = .TRUE.
+                END IF
+              !$OMP END CRITICAL
+              IF (skip) CYCLE
+
+              IF (cptnum_thread >= max_per_thread) THEN
+                PRINT *, "ERROR: Thread ", thread_id, " exceeded max_per_thread. Aborting."
+                EXIT
+              END IF
+
+              cptnum_thread = cptnum_thread + 1
+              cpcl_thread(cptnum_thread)%ind = (/n1,n2,n3/)
+              cpcl_thread(cptnum_thread)%grad = grad
+              cpcl_thread(cptnum_thread)%hasProxy = .FALSE.
+              cpcl_thread(cptnum_thread)%r = tem
+
+              WRITE(*,*) "Thread", thread_id, "accepted point at", cpcl_thread(cptnum_thread)%ind
+            END IF
+          END DO
         END DO
       END DO
-    END DO
-  !$OMP END DO
-!$OMP END PARALLEL
+    !$OMP END DO
 
-! Sum total candidates
-total_candidates = SUM(thread_counts)
-
-! Allocate cpcl with enough space
-IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
-ALLOCATE(cpcl(total_candidates * 2))  ! double size for safety
-
-! Compute offsets for each thread
-offset = 0
-DO i = 1, num_threads
-  local_index = thread_counts(i)
-  thread_counts(i) = offset
-  offset = offset + local_index
-END DO
-
-! Allocate temporary per-thread arrays
-! (optional, can allocate cpcl_thread inside parallel below)
-
-! Second pass: fill cpcl in parallel with proper offsets
-!$OMP PARALLEL PRIVATE(n1,n2,n3,p,trueR,tem,grad,thread_id,local_index) SHARED(thread_counts,cpcl)
-  thread_id = omp_get_thread_num() + 1
-  local_index = thread_counts(thread_id)
-  
-  !$OMP DO
-    DO n1 = 1, chg%npts(1)
-      DO n2 = 1, chg%npts(2)
-        DO n3 = 1, chg%npts(3)
-          IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) CYCLE
-          p = (/n1,n2,n3/)
-          trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
-          tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
-          IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
-            !$OMP CRITICAL
-            IF (.NOT. ProxyToCPCandidate(p, opts, cpcl, cptnum, chg)) THEN
-              cpcl(local_index + 1)%ind = p
-              cpcl(local_index + 1)%grad = grad
-              cpcl(local_index + 1)%hasProxy = .FALSE.
-              cpcl(local_index + 1)%r = tem
-              local_index = local_index + 1
-            END IF
-            !$OMP END CRITICAL
-          END IF
-        END DO
+    !$OMP CRITICAL
+      DO i = 1, cptnum_thread
+        cptnum = cptnum + 1
+        IF (cptnum > SIZE(cpcl)) THEN
+          ALLOCATE(cpclt(cptnum))
+          DO n1 = 1, cptnum - 1
+            cpclt(n1) = cpcl(n1)
+          END DO
+          DEALLOCATE(cpcl)
+          ALLOCATE(cpcl(cptnum * 2))
+          DO n1 = 1, cptnum - 1
+            cpcl(n1) = cpclt(n1)
+          END DO
+          DEALLOCATE(cpclt)
+        END IF
+        cpcl(cptnum) = cpcl_thread(i)
       END DO
-    END DO
-  !$OMP END DO
-!$OMP END PARALLEL
+    !$OMP END CRITICAL
 
-! Finalize cptnum
-cptnum = total_candidates
-    
-  END SUBROUTINE GetCPCL_Multithreaded
+    PRINT *, "Thread ", thread_id, " finished with ", cptnum_thread, " candidates"
+    DEALLOCATE(cpcl_thread)
+  !$OMP END PARALLEL
+
+END SUBROUTINE GetCPCL_Multithreaded
 
 
   SUBROUTINE GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
