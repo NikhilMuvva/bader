@@ -243,6 +243,7 @@
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER :: thread_offset, thread_count
     INTEGER :: estimated_candidates
+    LOGICAL :: should_add
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
     
 
@@ -301,7 +302,6 @@
               END IF
               
               ! Proximity check within this thread's region
-              LOGICAL :: should_add
               should_add = .TRUE.
               
               ! Check against candidates already found by this thread
