@@ -147,7 +147,64 @@
       DEALLOCATE(cpcl_thread)
     !$OMP END PARALLEL
     
+    ! Single-threaded proximity filtering to remove duplicates
+    PRINT *, "Before filtering: ", cptnum, " candidates"
+    CALL FilterDuplicateCandidates(cpcl, cptnum)
+    PRINT *, "After filtering: ", cptnum, " candidates"
+    
   END SUBROUTINE GetCPCL_Multithreaded
+
+  ! Helper subroutine to filter duplicate candidates
+  SUBROUTINE FilterDuplicateCandidates(cpcl, cptnum)
+    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl
+    INTEGER :: cptnum
+    
+    INTEGER :: i, j, new_count
+    LOGICAL, ALLOCATABLE :: keep(:)
+    TYPE(cpc), ALLOCATABLE :: temp_cpcl(:)
+    
+    ALLOCATE(keep(cptnum))
+    keep = .TRUE.
+    
+    ! Mark duplicates for removal
+    DO i = 1, cptnum
+      IF (.NOT. keep(i)) CYCLE
+      DO j = i + 1, cptnum
+        IF (.NOT. keep(j)) CYCLE
+        ! Check if candidates are too close (using same logic as ProxyToCPCandidate)
+        IF (ABS(cpcl(i)%ind(1) - cpcl(j)%ind(1)) <= 2 .AND. &
+            ABS(cpcl(i)%ind(2) - cpcl(j)%ind(2)) <= 2 .AND. &
+            ABS(cpcl(i)%ind(3) - cpcl(j)%ind(3)) <= 2) THEN
+          keep(j) = .FALSE.  ! Mark j as duplicate
+        END IF
+      END DO
+    END DO
+    
+    ! Count how many to keep
+    new_count = 0
+    DO i = 1, cptnum
+      IF (keep(i)) new_count = new_count + 1
+    END DO
+    
+    ! Create new array with only unique candidates
+    ALLOCATE(temp_cpcl(new_count))
+    j = 1
+    DO i = 1, cptnum
+      IF (keep(i)) THEN
+        temp_cpcl(j) = cpcl(i)
+        j = j + 1
+      END IF
+    END DO
+    
+    ! Replace original array
+    DEALLOCATE(cpcl)
+    ALLOCATE(cpcl(new_count))
+    cpcl = temp_cpcl
+    cptnum = new_count
+    
+    DEALLOCATE(temp_cpcl, keep)
+    
+  END SUBROUTINE FilterDuplicateCandidates
 
 
   SUBROUTINE GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
