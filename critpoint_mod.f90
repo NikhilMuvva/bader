@@ -259,6 +259,12 @@
       ALLOCATE(cpcl(estimated_candidates))
     END IF
     
+    ! Also ensure cpl array is large enough
+    IF (SIZE(cpl) < estimated_candidates) THEN
+      DEALLOCATE(cpl)
+      ALLOCATE(cpl(estimated_candidates))
+    END IF
+    
     PRINT *, "Starting GetCPCL_Spatial with ", num_threads, " threads"
     PRINT *, "Grid size: ", chg%npts(1), "x", chg%npts(2), "x", chg%npts(3)
     PRINT *, "Estimated candidates: ", estimated_candidates
@@ -296,8 +302,8 @@
             
             IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
               ! Check if we need to expand array
-              IF (thread_offset + thread_count >= SIZE(cpcl)) THEN
-                PRINT *, "ERROR: Thread ", thread_id, " exceeded array bounds. Aborting."
+              IF (thread_offset + thread_count >= SIZE(cpcl) - 1000) THEN
+                PRINT *, "ERROR: Thread ", thread_id, " approaching array bounds. Aborting."
                 EXIT
               END IF
               
