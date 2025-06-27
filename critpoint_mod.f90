@@ -140,6 +140,7 @@
   TYPE(charge_obj) :: chg
   TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl, cpl
   TYPE(options_obj) :: opts
+  
 
   REAL(q2), DIMENSION(8,3,3) :: nnHes
   REAL(q2), DIMENSION(3,3) :: interpolHessian
@@ -159,9 +160,10 @@
     temnormcap = 1.0_q2
 
     IF (opts%gradMode) THEN
-      CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
+      CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 75)
     ELSE
-      CALL NRTFGP(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
+      CALL NRTFGP(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 25)
+      PRINT *, "Processed point", i, "isUnique:", cpcl(i)%isUnique
     END IF
 
     IF (cpcl(i)%isUnique) THEN
