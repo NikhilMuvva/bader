@@ -166,22 +166,31 @@
     INTEGER :: cptnum
     TYPE(options_obj) :: opts
     
-    INTEGER :: i, j, new_count
+    INTEGER :: i, j, new_count, radius
     LOGICAL, ALLOCATABLE :: keep(:)
     TYPE(cpc), ALLOCATABLE :: temp_cpcl(:)
     
+    radius = opts%cp_search_radius
     ALLOCATE(keep(cptnum))
     keep = .TRUE.
     
-    ! Mark duplicates for removal
+    PRINT *, "Starting filtering of ", cptnum, " candidates..."
+    
+    ! Mark duplicates for removal - optimized for large arrays
     DO i = 1, cptnum
       IF (.NOT. keep(i)) CYCLE
+      
+      ! Progress indicator for large arrays
+      IF (MOD(i, 10000) == 0) THEN
+        PRINT *, "Filtering progress: ", i, "/", cptnum
+      END IF
+      
       DO j = i + 1, cptnum
         IF (.NOT. keep(j)) CYCLE
         ! Check if candidates are too close (using same logic as ProxyToCPCandidate)
-        IF (ABS(cpcl(i)%ind(1) - cpcl(j)%ind(1)) <= opts%cp_search_radius .AND. &
-            ABS(cpcl(i)%ind(2) - cpcl(j)%ind(2)) <= opts%cp_search_radius .AND. &
-            ABS(cpcl(i)%ind(3) - cpcl(j)%ind(3)) <= opts%cp_search_radius) THEN
+        IF (ABS(cpcl(i)%ind(1) - cpcl(j)%ind(1)) <= radius .AND. &
+            ABS(cpcl(i)%ind(2) - cpcl(j)%ind(2)) <= radius .AND. &
+            ABS(cpcl(i)%ind(3) - cpcl(j)%ind(3)) <= radius) THEN
           keep(j) = .FALSE.  ! Mark j as duplicate
         END IF
       END DO
@@ -192,6 +201,8 @@
     DO i = 1, cptnum
       IF (keep(i)) new_count = new_count + 1
     END DO
+    
+    PRINT *, "Keeping ", new_count, " unique candidates out of ", cptnum
     
     ! Create new array with only unique candidates
     ALLOCATE(temp_cpcl(new_count))
@@ -210,6 +221,8 @@
     cptnum = new_count
     
     DEALLOCATE(temp_cpcl, keep)
+    
+    PRINT *, "Filtering complete!"
     
   END SUBROUTINE FilterDuplicateCandidates
 
