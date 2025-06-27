@@ -1,4 +1,5 @@
   MODULE critpoint_mod
+    USE omp_lib
     USE kind_mod
     USE matrix_mod
     USE bader_mod
@@ -133,7 +134,51 @@
     END DO OUTER
   END SUBROUTINE GetCPCL
 
-  SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
+ SUBROUTINE SearchWithCPCLMultiThread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
+  USE omp_lib
+  TYPE(bader_obj) :: bdr
+  TYPE(charge_obj) :: chg
+  TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl, cpl
+  TYPE(options_obj) :: opts
+
+  REAL(q2), DIMENSION(8,3,3) :: nnHes
+  REAL(q2), DIMENSION(3,3) :: interpolHessian
+  REAL(q2), DIMENSION(3) :: temcap, temscale, trueR, distance
+  REAL(q2) :: temnormcap
+
+  INTEGER, DIMENSION(4) :: ucpCounts
+  INTEGER, DIMENSION(2) :: connectedAtoms 
+  INTEGER :: i, cptnum, ucptnum
+
+  !$OMP PARALLEL DO PRIVATE(i, temcap, temscale, temnormcap, trueR, interpolHessian, connectedAtoms) &
+  !$OMP SHARED(cpcl, cpl, bdr, chg, opts, cptnum, ucpCounts, ucptnum) DEFAULT(SHARED)
+  DO i = 1, cptnum
+    cpcl(i)%isunique = .FALSE.
+    temcap = (/1.0_q2, 1.0_q2, 1.0_q2/)
+    temscale = (/1.0_q2, 1.0_q2, 1.0_q2/)
+    temnormcap = 1.0_q2
+
+    IF (opts%gradMode) THEN
+      CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
+    ELSE
+      CALL NRTFGP(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
+      PRINT *, "Processed point", i, "isUnique:", cpcl(i)%isUnique
+    END IF
+
+    IF (cpcl(i)%isUnique) THEN
+      cpcl(i)%trueind = trueR
+      interpolHessian = CDHessianR(trueR, chg)
+
+      !$OMP CRITICAL
+      ucptnum = ucptnum + 1
+      CALL RecordCPR(trueR, chg, cpl, ucptnum, connectedAtoms, ucpCounts, opts, interpolHessian, cpcl(i)%ind)
+      !$OMP END CRITICAL
+    END IF
+  END DO
+  !$OMP END PARALLEL DO
+END SUBROUTINE SearchWithCPCLMultiThread
+
+SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
     TYPE(bader_obj) :: bdr
     TYPE(charge_obj) :: chg
     TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl,cpl
@@ -180,6 +225,8 @@
     END DO
   END SUBROUTINE SearchWithCPCL
 
+
+
   ! This subroutine reads in a list of CPs and their types, runs it through ReduceCP and PHRuleExam
   SUBROUTINE StaticCheck(bdr,chg,opts,ions)
     TYPE(bader_obj) :: bdr
@@ -191,6 +238,7 @@
     INTEGER,DIMENSION(4) :: ucpCounts
     INTEGER :: n, ucptnum, ij, it_num, rot_num
     LOGICAL :: phmrCompliant, isReduced
+
 
     isReduced = .FALSE.
     ALLOCATE(cp_static(ReadStaticSize()))
@@ -476,7 +524,7 @@
           ! point is within half lattice to another, do not record this new point.
           ALLOCATE(cpRoster(cptnum,3))
           IF (LDM_Trajectories) ALLOCATE(fullcpRoster(cptnum,3))
-          CALL SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
+          CALL SearchWithCPCLMultiThread(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
 
           PRINT *, 'Number of critical point count: ', ucptnum
           PRINT *, 'Number of nuclear, bond, ring and cage  critical point &
