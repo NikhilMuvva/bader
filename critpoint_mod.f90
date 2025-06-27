@@ -83,7 +83,7 @@
     PRINT *, "max_per_thread = ", max_per_thread
     PRINT *, "Total memory per thread = ", max_per_thread * 8, " bytes"  ! Rough estimate
 
-    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,cpcl_thread, cptnum_thread, thread_id)
+    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,cpcl_thread, cptnum_thread, thread_id, skip)
       thread_id = omp_get_thread_num() + 1
       PRINT *, "Thread ", thread_id, " starting work"
       ALLOCATE(cpcl_thread(max_per_thread))
