@@ -125,6 +125,9 @@
                 cpcl_thread(cptnum_thread)%grad = grad
                 cpcl_thread(cptnum_thread)%hasProxy = .FALSE.
                 cpcl_thread(cptnum_thread)%r = tem
+
+
+                PRINT *, "Thread", thread_id, "accepted point at", p
               END IF
             END DO
           END DO
