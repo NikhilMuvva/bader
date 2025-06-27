@@ -70,16 +70,18 @@
     INTEGER :: thread_id
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
     LOGICAL :: skip
+    LOGICAL :: should_exit
     
 
     ! Initialize OpenMP variables
     cptnum = 0
     num_threads = omp_get_max_threads()
     CALL omp_set_num_threads(num_threads)
+    should_exit = .FALSE.
     
     PRINT *, "Starting GetCPCL_Multithreaded with ", num_threads, " threads"
 
-    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id, skip)
+    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id, skip) SHARED(should_exit)
       thread_id = omp_get_thread_num() + 1
       PRINT *, "Thread ", thread_id, " starting work"
       
@@ -98,6 +100,11 @@
               
               IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
                 !$OMP CRITICAL
+                  IF (should_exit) THEN
+                    !$OMP END CRITICAL
+                    CYCLE
+                  END IF
+                  
                   IF (ProxyToCPCandidate(p, opts, cpcl, cptnum, chg)) THEN
                     skip = .TRUE.
                   ELSE
@@ -110,9 +117,9 @@
                     IF (cptnum > SIZE(cpcl)) THEN
                       IF (cptnum > 100000) THEN
                         PRINT *, "ERROR: Too many searches required. Aborting."
+                        should_exit = .TRUE.
                         !$OMP END CRITICAL
-                        !$OMP END PARALLEL
-                        RETURN
+                        CYCLE
                       END IF
                       PRINT *, 'expanding cpcl size'
                       ALLOCATE(cpclt(cptnum))
