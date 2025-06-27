@@ -76,7 +76,7 @@
     ! Initialize OpenMP variables
     cptnum = 0
     num_threads = omp_get_max_threads()
-    max_per_thread = 10000
+    max_per_thread = 100000
     CALL omp_set_num_threads(num_threads)
     
     ! Pre-allocate a large enough array to avoid expansion during merging
