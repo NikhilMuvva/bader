@@ -236,12 +236,13 @@
     REAL(q2), DIMENSION(3) :: tem,trueR,grad
 
     INTEGER, DIMENSION(3) :: p
-    INTEGER :: n1,n2,n3,cptnum,i
+    INTEGER :: n1,n2,n3,cptnum,i,j
 
     ! Variables for OpenMP parallelism
     INTEGER :: num_threads, thread_id
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER :: thread_offset, thread_count
+    INTEGER :: estimated_candidates
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
     
 
@@ -251,7 +252,6 @@
     CALL omp_set_num_threads(num_threads)
     
     ! Pre-allocate array based on grid size (estimate 1% of grid points as candidates)
-    INTEGER :: estimated_candidates
     estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 100
     IF (SIZE(cpcl) < estimated_candidates) THEN
       DEALLOCATE(cpcl)
