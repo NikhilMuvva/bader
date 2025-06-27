@@ -66,25 +66,30 @@
     INTEGER :: n1,n2,n3,cptnum,i
 
     ! Variables for OpenMP parallelism
-    INTEGER :: num_threads
+    INTEGER :: num_threads, max_per_thread
+    INTEGER :: cptnum_thread
+    TYPE(cpc), ALLOCATABLE :: cpcl_thread(:)
     INTEGER :: thread_id
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
-    LOGICAL :: skip
-    LOGICAL :: should_exit
     
 
     ! Initialize OpenMP variables
     cptnum = 0
     num_threads = omp_get_max_threads()
+    max_per_thread = 10000
     CALL omp_set_num_threads(num_threads)
-    should_exit = .FALSE.
     
     PRINT *, "Starting GetCPCL_Multithreaded with ", num_threads, " threads"
+    PRINT *, "max_per_thread = ", max_per_thread
+    PRINT *, "Total memory per thread = ", max_per_thread * 8, " bytes"  ! Rough estimate
 
-    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id, skip) SHARED(should_exit)
+    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,cpcl_thread, cptnum_thread, thread_id)
       thread_id = omp_get_thread_num() + 1
       PRINT *, "Thread ", thread_id, " starting work"
+      ALLOCATE(cpcl_thread(max_per_thread))
+      cptnum_thread = 0
       
+      ! Loop over all points in the grid, split into threads
       !$OMP DO
         DO n1 = 1, chg%npts(1)
           DO n2 = 1, chg%npts(2)
@@ -99,67 +104,47 @@
               tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
               
               IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
-                !$OMP CRITICAL
-                  IF (should_exit) THEN
-                    !$OMP END CRITICAL
-                    CYCLE
-                  END IF
-                  
-                  IF (ProxyToCPCandidate(p, opts, cpcl, cptnum, chg)) THEN
-                    skip = .TRUE.
-                  ELSE
-                    skip = .FALSE.
-                    ! Add candidate directly to main array
-                    !$OMP ATOMIC
-                    cptnum = cptnum + 1
-                    
-                    ! Check if array needs expansion
-                    IF (cptnum > SIZE(cpcl)) THEN
-                      IF (cptnum > 100000) THEN
-                        PRINT *, "ERROR: Too many searches required. Aborting."
-                        should_exit = .TRUE.
-                        !$OMP END CRITICAL
-                        CYCLE
-                      END IF
-                      PRINT *, 'expanding cpcl size'
-                      ALLOCATE(cpclt(cptnum))
-                      DO i = 1, cptnum - 1
-                        cpclt(i) = cpcl(i)
-                      END DO
-                      DEALLOCATE(cpcl)
-                      ALLOCATE(cpcl(cptnum*2))
-                      DO i = 1, cptnum - 1
-                        cpcl(i)=cpclt(i)
-                      END DO
-                      DEALLOCATE(cpclt)
-                      ALLOCATE(cpclt(cptnum))
-                      DO i = 1, cptnum - 1
-                        cpclt(i) = cpl(i)
-                      END DO
-                      DEALLOCATE(cpl)
-                      ALLOCATE(cpl(cptnum*2))
-                      DO i = 1, cptnum - 1
-                        cpl(i)=cpclt(i)
-                      END DO
-                      DEALLOCATE(cpclt)
-                    END IF
-                    
-                    ! Add the candidate
-                    cpcl(cptnum)%ind = (/n1,n2,n3/)
-                    cpcl(cptnum)%grad = grad
-                    cpcl(cptnum)%hasProxy = .FALSE.
-                    cpcl(cptnum)%r = tem
-                    
-                    WRITE(*,*) "Thread", thread_id, "accepted point at", cpcl(cptnum)%ind
-                  END IF
-                !$OMP END CRITICAL
+                ! Check if we need to expand thread-local array
+                IF (cptnum_thread >= max_per_thread) THEN
+                  PRINT *, "ERROR: Thread ", thread_id, " exceeded max_per_thread. Aborting."
+                  EXIT
+                END IF
+                
+                ! Store candidate in thread-local array
+                cptnum_thread = cptnum_thread + 1
+                cpcl_thread(cptnum_thread)%ind = (/n1,n2,n3/)
+                cpcl_thread(cptnum_thread)%grad = grad
+                cpcl_thread(cptnum_thread)%hasProxy = .FALSE.
+                cpcl_thread(cptnum_thread)%r = tem
               END IF
             END DO
           END DO
         END DO
       !$OMP END DO
       
-      PRINT *, "Thread ", thread_id, " finished"
+      !$OMP CRITICAL
+        ! Merge thread results into main array
+        DO i = 1, cptnum_thread
+          cptnum = cptnum + 1
+          ! Check if main array needs expansion
+          IF (cptnum > SIZE(cpcl)) THEN
+            ALLOCATE(cpclt(cptnum))
+            DO n1 = 1, cptnum - 1
+              cpclt(n1) = cpcl(n1)
+            END DO
+            DEALLOCATE(cpcl)
+            ALLOCATE(cpcl(cptnum * 2))
+            DO n1 = 1, cptnum - 1
+              cpcl(n1) = cpclt(n1)
+            END DO
+            DEALLOCATE(cpclt)
+          END IF
+          cpcl(cptnum) = cpcl_thread(i)
+        END DO
+      !$OMP END CRITICAL
+      
+      PRINT *, "Thread ", thread_id, " finished with ", cptnum_thread, " candidates"
+      DEALLOCATE(cpcl_thread)
     !$OMP END PARALLEL
     
   END SUBROUTINE GetCPCL_Multithreaded
