@@ -140,7 +140,6 @@
   TYPE(charge_obj) :: chg
   TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl, cpl
   TYPE(options_obj) :: opts
-  
 
   REAL(q2), DIMENSION(8,3,3) :: nnHes
   REAL(q2), DIMENSION(3,3) :: interpolHessian
@@ -148,7 +147,7 @@
   REAL(q2) :: temnormcap
 
   INTEGER, DIMENSION(4) :: ucpCounts
-  INTEGER, DIMENSION(2) :: connectedAtoms
+  INTEGER, DIMENSION(2) :: connectedAtoms 
   INTEGER :: i, cptnum, ucptnum
 
   !$OMP PARALLEL DO PRIVATE(i, temcap, temscale, temnormcap, trueR, interpolHessian, connectedAtoms) &
@@ -160,9 +159,9 @@
     temnormcap = 1.0_q2
 
     IF (opts%gradMode) THEN
-      CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 75)
+      CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
     ELSE
-      CALL NRTFGP(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 25)
+      CALL NRTFGP(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
       PRINT *, "Processed point", i, "isUnique:", cpcl(i)%isUnique
     END IF
 
@@ -191,6 +190,7 @@ END SUBROUTINE SearchWithCPCL
     INTEGER,DIMENSION(4) :: ucpCounts
     INTEGER :: n, ucptnum, ij, it_num, rot_num
     LOGICAL :: phmrCompliant, isReduced
+
 
     isReduced = .FALSE.
     ALLOCATE(cp_static(ReadStaticSize()))
