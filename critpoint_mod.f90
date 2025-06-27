@@ -199,6 +199,7 @@
               CYCLE
             END IF
             cptnum = cptnum + 1
+            PRINT *, "Accepted point:", n1, n2, n3
             ! Check if the candidate list needs to be expanded.
             IF (cptnum < SIZE(cpcl) - 1 ) THEN
               cpcl(cptnum)%ind = (/n1,n2,n3/)
@@ -571,7 +572,7 @@
       ELSE 
         ! Loop through every grid point once and collect a list of points to start
         ! CP searching trajectories into cpcl, the CP candidate list.
-        CALL GetCPCL_Multithreaded(bdr,chg,cpl,cpcl,opts,cptnum)
+        CALL GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
         IF (cptnum > 100000) THEN
           stat = 0
         ELSE 
