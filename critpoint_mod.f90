@@ -300,12 +300,28 @@
                 EXIT
               END IF
               
-              ! Add candidate directly to thread's section of final array
-              thread_count = thread_count + 1
-              cpcl(thread_offset + thread_count)%ind = (/n1,n2,n3/)
-              cpcl(thread_offset + thread_count)%grad = grad
-              cpcl(thread_offset + thread_count)%hasProxy = .FALSE.
-              cpcl(thread_offset + thread_count)%r = tem
+              ! Proximity check within this thread's region
+              LOGICAL :: should_add
+              should_add = .TRUE.
+              
+              ! Check against candidates already found by this thread
+              DO i = 1, thread_count
+                IF (ABS(cpcl(thread_offset + i)%ind(1) - n1) <= opts%cp_search_radius .AND. &
+                    ABS(cpcl(thread_offset + i)%ind(2) - n2) <= opts%cp_search_radius .AND. &
+                    ABS(cpcl(thread_offset + i)%ind(3) - n3) <= opts%cp_search_radius) THEN
+                  should_add = .FALSE.
+                  EXIT
+                END IF
+              END DO
+              
+              IF (should_add) THEN
+                ! Add candidate directly to thread's section of final array
+                thread_count = thread_count + 1
+                cpcl(thread_offset + thread_count)%ind = (/n1,n2,n3/)
+                cpcl(thread_offset + thread_count)%grad = grad
+                cpcl(thread_offset + thread_count)%hasProxy = .FALSE.
+                cpcl(thread_offset + thread_count)%r = tem
+              END IF
             END IF
           END DO
         END DO
