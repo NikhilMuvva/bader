@@ -79,7 +79,7 @@
     ! Initialize OpenMP variables
     cptnum = 0
     num_threads = omp_get_max_threads()
-    max_per_thread = 10000
+    max_per_thread = 30000
     CALL omp_set_num_threads(num_threads)
     
     PRINT *, "Starting GetCPCL_Multithreaded with ", num_threads, " threads"
