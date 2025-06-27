@@ -127,7 +127,7 @@
                 cpcl_thread(cptnum_thread)%r = tem
 
 
-                PRINT *, "Thread", thread_id, "accepted point at", p
+                PRINT *, "Thread", thread_id, "accepted", cptnum_thread, "points"
               END IF
             END DO
           END DO
