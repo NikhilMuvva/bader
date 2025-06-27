@@ -149,15 +149,16 @@
     
     ! Single-threaded proximity filtering to remove duplicates
     PRINT *, "Before filtering: ", cptnum, " candidates"
-    CALL FilterDuplicateCandidates(cpcl, cptnum)
+    CALL FilterDuplicateCandidates(cpcl, cptnum, opts)
     PRINT *, "After filtering: ", cptnum, " candidates"
     
   END SUBROUTINE GetCPCL_Multithreaded
 
   ! Helper subroutine to filter duplicate candidates
-  SUBROUTINE FilterDuplicateCandidates(cpcl, cptnum)
+  SUBROUTINE FilterDuplicateCandidates(cpcl, cptnum, opts)
     TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl
     INTEGER :: cptnum
+    TYPE(options_obj) :: opts
     
     INTEGER :: i, j, new_count
     LOGICAL, ALLOCATABLE :: keep(:)
@@ -172,9 +173,9 @@
       DO j = i + 1, cptnum
         IF (.NOT. keep(j)) CYCLE
         ! Check if candidates are too close (using same logic as ProxyToCPCandidate)
-        IF (ABS(cpcl(i)%ind(1) - cpcl(j)%ind(1)) <= 2 .AND. &
-            ABS(cpcl(i)%ind(2) - cpcl(j)%ind(2)) <= 2 .AND. &
-            ABS(cpcl(i)%ind(3) - cpcl(j)%ind(3)) <= 2) THEN
+        IF (ABS(cpcl(i)%ind(1) - cpcl(j)%ind(1)) <= opts%cp_search_radius .AND. &
+            ABS(cpcl(i)%ind(2) - cpcl(j)%ind(2)) <= opts%cp_search_radius .AND. &
+            ABS(cpcl(i)%ind(3) - cpcl(j)%ind(3)) <= opts%cp_search_radius) THEN
           keep(j) = .FALSE.  ! Mark j as duplicate
         END IF
       END DO
