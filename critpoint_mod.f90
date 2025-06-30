@@ -264,7 +264,6 @@
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER :: thread_offset, thread_count
     INTEGER :: estimated_candidates
-    INTEGER :: overlap
     LOGICAL :: should_add
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
     
@@ -291,21 +290,16 @@
     PRINT *, "Grid size: ", chg%npts(1), "x", chg%npts(2), "x", chg%npts(3)
     PRINT *, "Estimated candidates: ", estimated_candidates
 
-    ! Add overlap/halo region to each thread's partition
-    overlap = opts%cp_search_radius
-
     !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_offset,thread_count)
       thread_id = omp_get_thread_num() + 1
       
-      ! Calculate spatial region for this thread, with overlap
+      ! Calculate spatial region for this thread
       n1_chunk = chg%npts(1) / num_threads
-      n1_start = (thread_id - 1) * n1_chunk + 1 - overlap
-      IF (n1_start < 1) n1_start = 1
+      n1_start = (thread_id - 1) * n1_chunk + 1
       IF (thread_id == num_threads) THEN
-        n1_end = chg%npts(1)
+        n1_end = chg%npts(1)  ! Last thread gets remaining points
       ELSE
-        n1_end = thread_id * n1_chunk + overlap
-        IF (n1_end > chg%npts(1)) n1_end = chg%npts(1)
+        n1_end = thread_id * n1_chunk
       END IF
       
       ! Calculate offset in final array for this thread
@@ -314,7 +308,7 @@
       
       PRINT *, "Thread ", thread_id, " processing n1=", n1_start, " to ", n1_end
       
-      ! Process spatial region assigned to this thread (with overlap)
+      ! Process spatial region assigned to this thread
       DO n1 = n1_start, n1_end
         DO n2 = 1, chg%npts(2)
           DO n3 = 1, chg%npts(3)
@@ -327,9 +321,7 @@
             trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
             tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
             
-            ! Check both TEM criterion and gradient magnitude for nuclear critical points
-            IF (ALL(tem <= 1.5 + opts%par_tem ) .OR. &
-                (SUM(grad*grad) <= (opts%par_gradfloor)**2 )) THEN
+            IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
               ! Check if we need to expand array
               IF (thread_offset + thread_count >= SIZE(cpcl) - 1000) THEN
                 PRINT *, "ERROR: Thread ", thread_id, " approaching array bounds. Aborting."
