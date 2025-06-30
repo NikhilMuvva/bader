@@ -270,16 +270,22 @@
     PRINT *, "Grid size: ", chg%npts(1), "x", chg%npts(2), "x", chg%npts(3)
     PRINT *, "Estimated candidates: ", estimated_candidates
 
+    ! Add overlap/halo region to each thread's partition
+    INTEGER :: overlap
+    overlap = opts%cp_search_radius
+
     !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_offset,thread_count)
       thread_id = omp_get_thread_num() + 1
       
-      ! Calculate spatial region for this thread
+      ! Calculate spatial region for this thread, with overlap
       n1_chunk = chg%npts(1) / num_threads
-      n1_start = (thread_id - 1) * n1_chunk + 1
+      n1_start = (thread_id - 1) * n1_chunk + 1 - overlap
+      IF (n1_start < 1) n1_start = 1
       IF (thread_id == num_threads) THEN
-        n1_end = chg%npts(1)  ! Last thread gets remaining points
+        n1_end = chg%npts(1)
       ELSE
-        n1_end = thread_id * n1_chunk
+        n1_end = thread_id * n1_chunk + overlap
+        IF (n1_end > chg%npts(1)) n1_end = chg%npts(1)
       END IF
       
       ! Calculate offset in final array for this thread
@@ -288,7 +294,7 @@
       
       PRINT *, "Thread ", thread_id, " processing n1=", n1_start, " to ", n1_end
       
-      ! Process spatial region assigned to this thread
+      ! Process spatial region assigned to this thread (with overlap)
       DO n1 = n1_start, n1_end
         DO n2 = 1, chg%npts(2)
           DO n3 = 1, chg%npts(3)
