@@ -428,11 +428,7 @@
     
   END SUBROUTINE GetCPCL_Spatial
 
-  ! Remove thread-local proximity filtering: just collect all candidates
-  ! (No changes needed here if you already do not filter per-thread)
-  
-  ! After merging all candidates, sort by grid index before reduction
-  CONTAINS
+  ! Helper: Sort candidate list by grid index (ind(1), ind(2), ind(3))
   SUBROUTINE SortCPLByIndex(cpl, n)
     TYPE(cpc), DIMENSION(:), INTENT(INOUT) :: cpl
     INTEGER, INTENT(IN) :: n
