@@ -264,6 +264,9 @@
     INTEGER :: num_threads, thread_id
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER :: thread_offset, thread_count
+    INTEGER :: estimated_candidates
+    INTEGER :: overlap
+    LOGICAL :: should_add
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
     
 
