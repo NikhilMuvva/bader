@@ -397,21 +397,22 @@
     END IF
     
     PRINT *, "Final candidate count: ", cptnum
-
+    
+    ! Sort the candidate list by grid index before reduction
+    CALL SortCPLByIndex(cpcl, cptnum)
+    
     ! Debug: Print some statistics about the candidates
     IF (cptnum > 0) THEN
       min_grad = HUGE(1.0_q2)
       max_grad = -HUGE(1.0_q2)
       min_tem = HUGE(1.0_q2)
       max_tem = -HUGE(1.0_q2)
-      
       DO i = 1, cptnum
         min_grad = MIN(min_grad, SUM(cpcl(i)%grad * cpcl(i)%grad))
         max_grad = MAX(max_grad, SUM(cpcl(i)%grad * cpcl(i)%grad))
         min_tem = MIN(min_tem, MAXVAL(ABS(cpcl(i)%r)))
         max_tem = MAX(max_tem, MAXVAL(ABS(cpcl(i)%r)))
       END DO
-      
       PRINT *, "=== DEBUG STATISTICS ==="
       PRINT *, "Gradient magnitude range: ", SQRT(min_grad), " to ", SQRT(max_grad)
       PRINT *, "TEM value range: ", min_tem, " to ", max_tem
@@ -419,13 +420,36 @@
       PRINT *, "TEM threshold: ", 1.5 + opts%par_tem
       PRINT *, "=== END DEBUG STATISTICS ==="
     END IF
-
+    
     ! Post-processing: filter out candidates within proximity
     PRINT *, "Before proximity filtering: ", cptnum, " candidates"
     CALL FilterDuplicateCandidates(cpcl, cptnum, opts)
     PRINT *, "After proximity filtering: ", cptnum, " candidates"
     
   END SUBROUTINE GetCPCL_Spatial
+
+  ! Remove thread-local proximity filtering: just collect all candidates
+  ! (No changes needed here if you already do not filter per-thread)
+  
+  ! After merging all candidates, sort by grid index before reduction
+  CONTAINS
+  SUBROUTINE SortCPLByIndex(cpl, n)
+    TYPE(cpc), DIMENSION(:), INTENT(INOUT) :: cpl
+    INTEGER, INTENT(IN) :: n
+    INTEGER :: i, j
+    TYPE(cpc) :: temp
+    DO i = 1, n-1
+      DO j = i+1, n
+        IF (cpl(i)%ind(1) > cpl(j)%ind(1) .OR. &
+            (cpl(i)%ind(1) == cpl(j)%ind(1) .AND. cpl(i)%ind(2) > cpl(j)%ind(2)) .OR. &
+            (cpl(i)%ind(1) == cpl(j)%ind(1) .AND. cpl(i)%ind(2) == cpl(j)%ind(2) .AND. cpl(i)%ind(3) > cpl(j)%ind(3))) THEN
+          temp = cpl(i)
+          cpl(i) = cpl(j)
+          cpl(j) = temp
+        END IF
+      END DO
+    END DO
+  END SUBROUTINE SortCPLByIndex
 
   SUBROUTINE GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
     TYPE(bader_obj) :: bdr
