@@ -17,7 +17,7 @@
     IMPLICIT NONE
 
     PRIVATE 
-    PUBLIC :: critpoint_find, StaticCheck
+    PUBLIC :: critpoint_find, StaticCheckMultithread
 
     TYPE static_cp_list
       CHARACTER(LEN=1) :: cp_type
@@ -605,6 +605,36 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
 
   END SUBROUTINE StaticCheck
 
+  SUBROUTINE StaticCheckMultithread(chg, cpl, ucptnum, ucpCounts)
+  USE omp_lib
+  TYPE(charge_obj) :: chg
+  TYPE(cpc), DIMENSION(:) :: cpl
+  INTEGER :: ucptnum
+  INTEGER, DIMENSION(4) :: ucpCounts
+
+  INTEGER :: i
+  INTEGER :: localCounts(4)  ! Local counts per thread
+
+  localCounts = 0  ! Initialize local thread's copy
+
+  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i) REDUCTION(+:localCounts)
+  DO i = 1, ucptnum
+    ! Compute Hessian matrix at cpl(i)%trueind
+    cpl(i)%hessian = CDHessianR(cpl(i)%trueind, chg)
+
+    ! Compute eigenvalues of Hessian
+    CALL ComputeEigenvalues(cpl(i)%hessian, cpl(i)%eigenvalues)
+
+    ! Classify CP type based on eigenvalues
+    CALL ClassifyCP(cpl(i), localCounts)
+  END DO
+  !$OMP END PARALLEL DO
+
+  ! Store final counts
+  ucpCounts = localCounts
+END SUBROUTINE StaticCheckMultithread
+
+
   SUBROUTINE critpoint_find(bdr,chg,opts,ions,stat)
 ! These are for screening CP due to numerical error. 
     !TYPE(hessian) :: hes
@@ -650,7 +680,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
       isUniqueTest, isReduced, phmrCompliant, isReducible
 
     IF (opts%static_check) THEN
-      CALL StaticCheck(bdr,chg,opts,ions)
+      CALL StaticCheckMultithread(bdr,chg,opts,ions)
     ELSE 
       !CALL PrintFlavorText()
       ! below are variables for least sqaures gradient
