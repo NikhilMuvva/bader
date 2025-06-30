@@ -402,7 +402,7 @@
               CYCLE
             END IF
             cptnum = cptnum + 1
-            PRINT *, "Accepted point:", n1, n2, n3
+            
             ! Check if the candidate list needs to be expanded.
             IF (cptnum < SIZE(cpcl) - 1 ) THEN
               cpcl(cptnum)%ind = (/n1,n2,n3/)
@@ -837,7 +837,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
           ! point is within half lattice to another, do not record this new point.
           ALLOCATE(cpRoster(cptnum,3))
           IF (LDM_Trajectories) ALLOCATE(fullcpRoster(cptnum,3))
-          CALL SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
+          CALL SearchWithCPCLMultiThread(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
 
           PRINT *, 'Number of critical point count: ', ucptnum
           PRINT *, 'Number of nuclear, bond, ring and cage  critical point &
