@@ -90,51 +90,45 @@
     PRINT *, "max_per_thread = ", max_per_thread
     PRINT *, "Total memory per thread = ", max_per_thread * 8, " bytes"  ! Rough estimate
 
-    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,cpcl_thread, cptnum_thread, thread_id)
+    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,cptnum_thread,cpcl_thread)
       thread_id = omp_get_thread_num() + 1
-      PRINT *, "Thread ", thread_id, " starting work"
+      
+      ! Allocate thread-local array
       ALLOCATE(cpcl_thread(max_per_thread))
       cptnum_thread = 0
       
-      ! Loop over all points in the grid, split into threads
-      !$OMP DO
-        DO n1 = 1, chg%npts(1)
-          DO n2 = 1, chg%npts(2)
-            DO n3 = 1, chg%npts(3)
-              ! check to see if this point is in the vacuum
-              IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) THEN
-                CYCLE
+      PRINT *, "Thread ", thread_id, " starting..."
+      
+      ! Process all grid points
+      DO n1 = 1, chg%npts(1)
+        DO n2 = 1, chg%npts(2)
+          DO n3 = 1, chg%npts(3)
+            ! check to see if this point is in the vacuum
+            IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) THEN
+              CYCLE
+            END IF
+            
+            p = (/n1,n2,n3/)
+            trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
+            tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
+            
+            IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
+              ! Check if we need to expand thread-local array
+              IF (cptnum_thread >= max_per_thread) THEN
+                PRINT *, "ERROR: Thread ", thread_id, " exceeded max_per_thread. Aborting."
+                EXIT
               END IF
               
-              p = (/n1,n2,n3/)
-              trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
-              tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
-              
-              ! Debug: Check both criteria separately
-              LOGICAL :: tem_satisfied, grad_satisfied
-              tem_satisfied = ALL(tem <= 1.5 + opts%par_tem )
-              grad_satisfied = (SUM(grad*grad) <= (opts%par_gradfloor)**2 )
-              
-              IF (tem_satisfied .OR. grad_satisfied) THEN
-                IF (tem_satisfied) thread_tem_candidates = thread_tem_candidates + 1
-                IF (grad_satisfied) thread_grad_candidates = thread_grad_candidates + 1
-                ! Check if we need to expand thread-local array
-                IF (cptnum_thread >= max_per_thread) THEN
-                  PRINT *, "ERROR: Thread ", thread_id, " exceeded max_per_thread. Aborting."
-                  EXIT
-                END IF
-                
-                ! Store candidate in thread-local array
-                cptnum_thread = cptnum_thread + 1
-                cpcl_thread(cptnum_thread)%ind = (/n1,n2,n3/)
-                cpcl_thread(cptnum_thread)%grad = grad
-                cpcl_thread(cptnum_thread)%hasProxy = .FALSE.
-                cpcl_thread(cptnum_thread)%r = tem
-              END IF
-            END DO
+              ! Add candidate to thread-local array
+              cptnum_thread = cptnum_thread + 1
+              cpcl_thread(cptnum_thread)%ind = (/n1,n2,n3/)
+              cpcl_thread(cptnum_thread)%grad = grad
+              cpcl_thread(cptnum_thread)%hasProxy = .FALSE.
+              cpcl_thread(cptnum_thread)%r = tem
+            END IF
           END DO
         END DO
-      !$OMP END DO
+      END DO
       
       !$OMP CRITICAL
         ! Merge thread results into main array
@@ -158,13 +152,6 @@
       !$OMP END CRITICAL
       
       PRINT *, "Thread ", thread_id, " finished with ", cptnum_thread, " candidates"
-      PRINT *, "  - TEM criterion candidates: ", thread_tem_candidates
-      PRINT *, "  - Gradient criterion candidates: ", thread_grad_candidates
-      
-      ! Atomic update of total count
-      !$OMP ATOMIC
-      cptnum = cptnum + thread_count
-      
       DEALLOCATE(cpcl_thread)
     !$OMP END PARALLEL
     
@@ -278,7 +265,9 @@
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER :: thread_offset, thread_count
     INTEGER :: estimated_candidates
-    LOGICAL :: should_add
+    INTEGER :: thread_tem_candidates, thread_grad_candidates
+    LOGICAL :: should_add, tem_satisfied, grad_satisfied
+    REAL(q2) :: min_grad, max_grad, min_tem, max_tem
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
     
 
@@ -304,7 +293,7 @@
     PRINT *, "Grid size: ", chg%npts(1), "x", chg%npts(2), "x", chg%npts(3)
     PRINT *, "Estimated candidates: ", estimated_candidates
 
-    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_offset,thread_count)
+    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_offset,thread_count,thread_tem_candidates,thread_grad_candidates)
       thread_id = omp_get_thread_num() + 1
       
       ! Calculate spatial region for this thread
@@ -320,12 +309,11 @@
       thread_offset = (thread_id - 1) * (estimated_candidates / num_threads)
       thread_count = 0
       
-      PRINT *, "Thread ", thread_id, " processing n1=", n1_start, " to ", n1_end
-      
       ! Debug counters for this thread
-      INTEGER :: thread_tem_candidates, thread_grad_candidates
       thread_tem_candidates = 0
       thread_grad_candidates = 0
+      
+      PRINT *, "Thread ", thread_id, " processing n1=", n1_start, " to ", n1_end
       
       ! Process spatial region assigned to this thread
       DO n1 = n1_start, n1_end
@@ -341,7 +329,6 @@
             tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
             
             ! Debug: Check both criteria separately
-            LOGICAL :: tem_satisfied, grad_satisfied
             tem_satisfied = ALL(tem <= 1.5 + opts%par_tem )
             grad_satisfied = (SUM(grad*grad) <= (opts%par_gradfloor)**2 )
             
@@ -413,7 +400,6 @@
 
     ! Debug: Print some statistics about the candidates
     IF (cptnum > 0) THEN
-      REAL(q2) :: min_grad, max_grad, min_tem, max_tem
       min_grad = HUGE(1.0_q2)
       max_grad = -HUGE(1.0_q2)
       min_tem = HUGE(1.0_q2)
@@ -1391,6 +1377,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
       RETURN
       ! now the gradient should be in cartesian
     END FUNCTION CDGrad
+    
     
     ! the following subroutine gets hes and force in lattice units and converts
     ! to cartesian by the end
