@@ -110,7 +110,14 @@
               trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
               tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
               
-              IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
+              ! Debug: Check both criteria separately
+              LOGICAL :: tem_satisfied, grad_satisfied
+              tem_satisfied = ALL(tem <= 1.5 + opts%par_tem )
+              grad_satisfied = (SUM(grad*grad) <= (opts%par_gradfloor)**2 )
+              
+              IF (tem_satisfied .OR. grad_satisfied) THEN
+                IF (tem_satisfied) thread_tem_candidates = thread_tem_candidates + 1
+                IF (grad_satisfied) thread_grad_candidates = thread_grad_candidates + 1
                 ! Check if we need to expand thread-local array
                 IF (cptnum_thread >= max_per_thread) THEN
                   PRINT *, "ERROR: Thread ", thread_id, " exceeded max_per_thread. Aborting."
@@ -151,6 +158,13 @@
       !$OMP END CRITICAL
       
       PRINT *, "Thread ", thread_id, " finished with ", cptnum_thread, " candidates"
+      PRINT *, "  - TEM criterion candidates: ", thread_tem_candidates
+      PRINT *, "  - Gradient criterion candidates: ", thread_grad_candidates
+      
+      ! Atomic update of total count
+      !$OMP ATOMIC
+      cptnum = cptnum + thread_count
+      
       DEALLOCATE(cpcl_thread)
     !$OMP END PARALLEL
     
@@ -308,6 +322,11 @@
       
       PRINT *, "Thread ", thread_id, " processing n1=", n1_start, " to ", n1_end
       
+      ! Debug counters for this thread
+      INTEGER :: thread_tem_candidates, thread_grad_candidates
+      thread_tem_candidates = 0
+      thread_grad_candidates = 0
+      
       ! Process spatial region assigned to this thread
       DO n1 = n1_start, n1_end
         DO n2 = 1, chg%npts(2)
@@ -321,7 +340,14 @@
             trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
             tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
             
-            IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
+            ! Debug: Check both criteria separately
+            LOGICAL :: tem_satisfied, grad_satisfied
+            tem_satisfied = ALL(tem <= 1.5 + opts%par_tem )
+            grad_satisfied = (SUM(grad*grad) <= (opts%par_gradfloor)**2 )
+            
+            IF (tem_satisfied .OR. grad_satisfied) THEN
+              IF (tem_satisfied) thread_tem_candidates = thread_tem_candidates + 1
+              IF (grad_satisfied) thread_grad_candidates = thread_grad_candidates + 1
               ! Check if we need to expand array
               IF (thread_offset + thread_count >= SIZE(cpcl) - 1000) THEN
                 PRINT *, "ERROR: Thread ", thread_id, " approaching array bounds. Aborting."
@@ -355,6 +381,8 @@
       END DO
       
       PRINT *, "Thread ", thread_id, " finished with ", thread_count, " candidates"
+      PRINT *, "  - TEM criterion candidates: ", thread_tem_candidates
+      PRINT *, "  - Gradient criterion candidates: ", thread_grad_candidates
       
       ! Atomic update of total count
       !$OMP ATOMIC
@@ -382,6 +410,27 @@
     END IF
     
     PRINT *, "Final candidate count: ", cptnum
+
+    ! Debug: Print some statistics about the candidates
+    IF (cptnum > 0) THEN
+      REAL(q2) :: min_grad, max_grad, min_tem, max_tem
+      min_grad = HUGE(1.0_q2)
+      max_grad = -HUGE(1.0_q2)
+      min_tem = HUGE(1.0_q2)
+      max_tem = -HUGE(1.0_q2)
+      
+      DO i = 1, cptnum
+        min_grad = MIN(min_grad, SUM(cpcl(i)%grad * cpcl(i)%grad))
+        max_grad = MAX(max_grad, SUM(cpcl(i)%grad * cpcl(i)%grad))
+        min_tem = MIN(min_tem, MAXVAL(ABS(cpcl(i)%r)))
+        max_tem = MAX(max_tem, MAXVAL(ABS(cpcl(i)%r)))
+      END DO
+      
+      PRINT *, "Gradient magnitude range: ", SQRT(min_grad), " to ", SQRT(max_grad)
+      PRINT *, "TEM value range: ", min_tem, " to ", max_tem
+      PRINT *, "Gradient threshold: ", opts%par_gradfloor
+      PRINT *, "TEM threshold: ", 1.5 + opts%par_tem
+    END IF
 
     ! Post-processing: filter out candidates within proximity
     PRINT *, "Before proximity filtering: ", cptnum, " candidates"
