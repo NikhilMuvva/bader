@@ -3183,7 +3183,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
         END DO
         nUCPTNum = nUCPTNum + 1
         ! record the reduced CP
-        CALL RecordCPRLight(avgR,chg,rcpl,nUCPTnum, rcpCounts, &
+        CALL RecordCPRLight(avgR,chg,rcpl,nUCPTNum, rcpCounts, &
           cpl(i)%ind,.FALSE.)
       END DO OUTER
       CALL ReplaceCPL(cpl,rcpl)
@@ -3191,7 +3191,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
         cpl(i)%isUnique = .TRUE.
       END DO
       ucpCounts = rcpCounts
-      ucptnum = nUCPTnum
+      ucptnum = nUCPTNum
       IF (LDM) PRINT *, 'The number of duplicate CP found is', dupcount
       DEALLOCATE(rcpl)
     END SUBROUTINE ReduceCP
