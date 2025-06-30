@@ -480,7 +480,6 @@
       CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
     ELSE
       CALL NRTFGP(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
-      PRINT *, "Processed point", i, "isUnique:", cpcl(i)%isUnique
     END IF
 
     IF (cpcl(i)%isUnique) THEN
