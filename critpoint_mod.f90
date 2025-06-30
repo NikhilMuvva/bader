@@ -426,10 +426,12 @@
         max_tem = MAX(max_tem, MAXVAL(ABS(cpcl(i)%r)))
       END DO
       
+      PRINT *, "=== DEBUG STATISTICS ==="
       PRINT *, "Gradient magnitude range: ", SQRT(min_grad), " to ", SQRT(max_grad)
       PRINT *, "TEM value range: ", min_tem, " to ", max_tem
       PRINT *, "Gradient threshold: ", opts%par_gradfloor
       PRINT *, "TEM threshold: ", 1.5 + opts%par_tem
+      PRINT *, "=== END DEBUG STATISTICS ==="
     END IF
 
     ! Post-processing: filter out candidates within proximity
