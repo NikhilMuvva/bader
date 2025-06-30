@@ -244,6 +244,7 @@
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER :: thread_offset, thread_count
     INTEGER :: estimated_candidates
+    INTEGER :: overlap
     LOGICAL :: should_add
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
     
@@ -271,7 +272,6 @@
     PRINT *, "Estimated candidates: ", estimated_candidates
 
     ! Add overlap/halo region to each thread's partition
-    INTEGER :: overlap
     overlap = opts%cp_search_radius
 
     !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_offset,thread_count)
