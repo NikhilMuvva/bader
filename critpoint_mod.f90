@@ -364,9 +364,9 @@
     PRINT *, "Final candidate count: ", cptnum
 
     ! Post-processing: filter out candidates within proximity
-    PRINT *, "Before proximity filtering: ", cptnum, " candidates"
-    CALL FilterDuplicateCandidates(cpcl, cptnum, opts)
-    PRINT *, "After proximity filtering: ", cptnum, " candidates"
+    ! PRINT *, "Before proximity filtering: ", cptnum, " candidates"
+    ! CALL FilterDuplicateCandidates(cpcl, cptnum, opts)
+    ! PRINT *, "After proximity filtering: ", cptnum, " candidates"
     
   END SUBROUTINE GetCPCL_Spatial
 
