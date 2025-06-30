@@ -168,6 +168,7 @@
     TYPE(options_obj) :: opts
     
     INTEGER :: i, j, new_count, radius
+    INTEGER :: nuclear_before, nuclear_after
     LOGICAL, ALLOCATABLE :: keep(:)
     TYPE(cpc), ALLOCATABLE :: temp_cpcl(:)
     
@@ -175,7 +176,16 @@
     ALLOCATE(keep(cptnum))
     keep = .TRUE.
     
+    ! Count nuclear candidates before filtering
+    nuclear_before = 0
+    DO i = 1, cptnum
+      IF (cpcl(i)%negcount == 3) THEN
+        nuclear_before = nuclear_before + 1
+      END IF
+    END DO
+    
     PRINT *, "Starting filtering of ", cptnum, " candidates..."
+    PRINT *, "Nuclear candidates before filtering: ", nuclear_before
     
     ! Mark duplicates for removal - optimized for large arrays
     DO i = 1, cptnum
@@ -199,11 +209,21 @@
     
     ! Count how many to keep
     new_count = 0
+    nuclear_after = 0
     DO i = 1, cptnum
-      IF (keep(i)) new_count = new_count + 1
+      IF (keep(i)) THEN
+        new_count = new_count + 1
+        IF (cpcl(i)%negcount == 3) THEN
+          nuclear_after = nuclear_after + 1
+        END IF
+      END IF
     END DO
     
     PRINT *, "Keeping ", new_count, " unique candidates out of ", cptnum
+    PRINT *, "Nuclear candidates after filtering: ", nuclear_after
+    IF (nuclear_before > 0 .AND. nuclear_after == 0) THEN
+      PRINT *, "WARNING: All nuclear candidates were filtered out!"
+    END IF
     
     ! Create new array with only unique candidates
     ALLOCATE(temp_cpcl(new_count))
