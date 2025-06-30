@@ -402,7 +402,7 @@
               CYCLE
             END IF
             cptnum = cptnum + 1
-            PRINT *, "Accepted point:", n1, n2, n3
+            !PRINT *, "Accepted point:", n1, n2, n3
             ! Check if the candidate list needs to be expanded.
             IF (cptnum < SIZE(cpcl) - 1 ) THEN
               cpcl(cptnum)%ind = (/n1,n2,n3/)
@@ -475,7 +475,7 @@
       CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
     ELSE
       CALL NRTFGP(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
-      PRINT *, "Processed point", i, "isUnique:", cpcl(i)%isUnique
+      !PRINT *, "Processed point", i, "isUnique:", cpcl(i)%isUnique
     END IF
 
     IF (cpcl(i)%isUnique) THEN
