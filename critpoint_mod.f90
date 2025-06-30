@@ -327,7 +327,9 @@
             trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
             tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
             
-            IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
+            ! Check both TEM criterion and gradient magnitude for nuclear critical points
+            IF (ALL(tem <= 1.5 + opts%par_tem ) .OR. &
+                (SUM(grad*grad) <= (0.1*opts%par_gradfloor)**2 )) THEN
               ! Check if we need to expand array
               IF (thread_offset + thread_count >= SIZE(cpcl) - 1000) THEN
                 PRINT *, "ERROR: Thread ", thread_id, " approaching array bounds. Aborting."
