@@ -54,6 +54,10 @@
 !NOTE: this subroutine should be called after refine_edge
 !      in order to restrict the calculation to edge points
 !-----------------------------------------------------------------------------------!
+  TYPE ThreadCPCL
+    TYPE(cpc), ALLOCATABLE :: list(:)
+  END TYPE ThreadCPCL
+
   SUBROUTINE GetCPCL_Multithreaded(bdr,chg,cpl,cpcl,opts,cptnum)
     TYPE(bader_obj) :: bdr
     TYPE(charge_obj) :: chg
@@ -69,7 +73,7 @@
     ! Variables for OpenMP parallelism
     INTEGER :: num_threads, max_per_thread
     INTEGER, ALLOCATABLE :: thread_counts(:)
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:,:) :: thread_cpcl
+    TYPE(ThreadCPCL), ALLOCATABLE :: thread_cpcl(:)
     INTEGER :: thread_id, cptnum_thread
 
     ! Initialize OpenMP variables
@@ -79,9 +83,12 @@
     CALL omp_set_num_threads(num_threads)
 
     ! Allocate thread-local candidate arrays
-    ALLOCATE(thread_cpcl(max_per_thread, num_threads))
+    ALLOCATE(thread_cpcl(num_threads))
     ALLOCATE(thread_counts(num_threads))
     thread_counts = 0
+    DO i = 1, num_threads
+      ALLOCATE(thread_cpcl(i)%list(max_per_thread))
+    END DO
 
     PRINT *, "Starting GetCPCL_Multithreaded with ", num_threads, " threads"
     PRINT *, "max_per_thread = ", max_per_thread
@@ -106,16 +113,16 @@
               
               IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
                 ! Proximity check within this thread's list
-                IF (.NOT. ProxyToCPCandidate(p, opts, thread_cpcl(:,thread_id), cptnum_thread, chg)) THEN
+                IF (.NOT. ProxyToCPCandidate(p, opts, thread_cpcl(thread_id)%list, cptnum_thread, chg)) THEN
                   IF (cptnum_thread >= max_per_thread) THEN
                     PRINT *, "ERROR: Thread ", thread_id, " exceeded max_per_thread. Aborting."
                     EXIT
                   END IF
                   cptnum_thread = cptnum_thread + 1
-                  thread_cpcl(cptnum_thread, thread_id)%ind = (/n1,n2,n3/)
-                  thread_cpcl(cptnum_thread, thread_id)%grad = grad
-                  thread_cpcl(cptnum_thread, thread_id)%hasProxy = .FALSE.
-                  thread_cpcl(cptnum_thread, thread_id)%r = tem
+                  thread_cpcl(thread_id)%list(cptnum_thread)%ind = (/n1,n2,n3/)
+                  thread_cpcl(thread_id)%list(cptnum_thread)%grad = grad
+                  thread_cpcl(thread_id)%list(cptnum_thread)%hasProxy = .FALSE.
+                  thread_cpcl(thread_id)%list(cptnum_thread)%r = tem
                 END IF
               END IF
             END DO
@@ -134,11 +141,14 @@
         IF (cptnum > SIZE(cpcl)) THEN
           CALL ResizeCPL(cpcl, cptnum * 2)
         END IF
-        cpcl(cptnum) = thread_cpcl(i, j)
+        cpcl(cptnum) = thread_cpcl(j)%list(i)
       END DO
     END DO
 
     PRINT *, "After merging: ", cptnum, " candidates"
+    DO i = 1, num_threads
+      DEALLOCATE(thread_cpcl(i)%list)
+    END DO
     DEALLOCATE(thread_cpcl, thread_counts)
   END SUBROUTINE GetCPCL_Multithreaded
 
