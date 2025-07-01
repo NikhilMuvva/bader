@@ -241,6 +241,8 @@
 
   SUBROUTINE GetCPCL_Spatial(bdr, chg, cpl, cpcl, opts, cptnum)
     USE omp_lib
+    IMPLICIT NONE
+
     TYPE(bader_obj) :: bdr
     TYPE(charge_obj) :: chg
     TYPE(options_obj) :: opts
@@ -249,45 +251,49 @@
     REAL(q2), DIMENSION(3,3) :: hessianMatrix
     REAL(q2), DIMENSION(3) :: tem, trueR, grad
     INTEGER, DIMENSION(3) :: p
-    INTEGER :: n1, n2, n3, cptnum, i, j, k
 
+    INTEGER :: n1, n2, n3, cptnum, i, j, k
     INTEGER :: num_threads, thread_id
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER :: estimated_candidates
     INTEGER, ALLOCATABLE :: thread_counts(:)
     TYPE(cpc), ALLOCATABLE, DIMENSION(:,:), TARGET :: thread_cpcl_all
 
-    ! Init thread settings
-    num_threads = omp_get_max_threads()
-    CALL omp_set_num_threads(num_threads)
-    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10
-
-    ! Allocate per-thread buffer
-    ALLOCATE(thread_cpcl_all(estimated_candidates / num_threads, num_threads))
-    ALLOCATE(thread_counts(num_threads))
-    thread_counts = 0
-
-    PRINT *, "Starting GetCPCL_Spatial with", num_threads, "threads"
-
-  !$OMP PARALLEL PRIVATE(n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk) SHARED(thread_cpcl_all, thread_counts)
+    ! Thread-private variables
     INTEGER :: thread_count_local
     TYPE(cpc), ALLOCATABLE :: thread_cpcl(:)
     LOGICAL :: should_add
 
+    ! --- Begin Setup ---
+    num_threads = omp_get_max_threads()
+    CALL omp_set_num_threads(num_threads)
+    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10
+    ALLOCATE(thread_cpcl_all(estimated_candidates / num_threads, num_threads))
+    ALLOCATE(thread_counts(num_threads))
+    thread_counts = 0
+    cptnum = 0
+
+    PRINT *, "Starting GetCPCL_Spatial with", num_threads, "threads"
+
+  !$OMP PARALLEL PRIVATE(n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_cpcl,thread_count_local,i,should_add)
     thread_id = omp_get_thread_num() + 1
     ALLOCATE(thread_cpcl(estimated_candidates / num_threads))
     thread_count_local = 0
 
     n1_chunk = chg%npts(1) / num_threads
     n1_start = (thread_id - 1) * n1_chunk + 1
-    n1_end = MERGE(thread_id * n1_chunk, chg%npts(1), thread_id /= num_threads)
+    IF (thread_id == num_threads) THEN
+      n1_end = chg%npts(1)
+    ELSE
+      n1_end = thread_id * n1_chunk
+    END IF
 
     DO n1 = n1_start, n1_end
       DO n2 = 1, chg%npts(2)
         DO n3 = 1, chg%npts(3)
           IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) CYCLE
 
-          p = (/n1,n2,n3/)
+          p = (/n1, n2, n3/)
           trueR = (/REAL(n1,q2), REAL(n2,q2), REAL(n3,q2)/)
           tem = CalcTEMGrid(p, chg, grad, hessianMatrix)
 
@@ -312,15 +318,14 @@
       END DO
     END DO
 
-    ! Copy thread's data to shared array
     thread_counts(thread_id) = thread_count_local
     DO i = 1, thread_count_local
       thread_cpcl_all(i, thread_id) = thread_cpcl(i)
     END DO
+
     DEALLOCATE(thread_cpcl)
   !$OMP END PARALLEL
 
-    ! Merge results
     cptnum = SUM(thread_counts)
     ALLOCATE(cpcl(cptnum))
     j = 0
@@ -334,7 +339,9 @@
     PRINT *, "Final candidate count: ", cptnum
     DEALLOCATE(thread_cpcl_all)
     DEALLOCATE(thread_counts)
+
   END SUBROUTINE GetCPCL_Spatial
+  
   SUBROUTINE GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
     TYPE(bader_obj) :: bdr
     TYPE(charge_obj) :: chg
