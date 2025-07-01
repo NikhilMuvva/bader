@@ -265,9 +265,7 @@
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER :: thread_offset, thread_count
     INTEGER :: estimated_candidates
-    INTEGER :: thread_tem_candidates, thread_grad_candidates
     LOGICAL :: should_add, tem_satisfied, grad_satisfied
-    REAL(q2) :: min_grad, max_grad, min_tem, max_tem
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
     
 
@@ -276,24 +274,18 @@
     num_threads = omp_get_max_threads()
     CALL omp_set_num_threads(num_threads)
     
-    ! Pre-allocate array based on grid size (estimate 10% of grid points as candidates)
-    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10
+    ! Pre-allocate array based on grid size (estimate 1% of grid points as candidates)
+    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 100
     IF (SIZE(cpcl) < estimated_candidates) THEN
       DEALLOCATE(cpcl)
       ALLOCATE(cpcl(estimated_candidates))
-    END IF
-    
-    ! Also ensure cpl array is large enough
-    IF (SIZE(cpl) < estimated_candidates) THEN
-      DEALLOCATE(cpl)
-      ALLOCATE(cpl(estimated_candidates))
     END IF
     
     PRINT *, "Starting GetCPCL_Spatial with ", num_threads, " threads"
     PRINT *, "Grid size: ", chg%npts(1), "x", chg%npts(2), "x", chg%npts(3)
     PRINT *, "Estimated candidates: ", estimated_candidates
 
-    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_offset,thread_count,thread_tem_candidates,thread_grad_candidates)
+    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_offset,thread_count,tem_satisfied,grad_satisfied,should_add,i)
       thread_id = omp_get_thread_num() + 1
       
       ! Calculate spatial region for this thread
@@ -308,10 +300,6 @@
       ! Calculate offset in final array for this thread
       thread_offset = (thread_id - 1) * (estimated_candidates / num_threads)
       thread_count = 0
-      
-      ! Debug counters for this thread
-      thread_tem_candidates = 0
-      thread_grad_candidates = 0
       
       PRINT *, "Thread ", thread_id, " processing n1=", n1_start, " to ", n1_end
       
@@ -328,13 +316,10 @@
             trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
             tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
             
-            ! Debug: Check both criteria separately
             tem_satisfied = ALL(tem <= 1.5 + opts%par_tem )
             grad_satisfied = (SUM(grad*grad) <= (opts%par_gradfloor)**2 )
             
             IF (tem_satisfied .OR. grad_satisfied) THEN
-              IF (tem_satisfied) thread_tem_candidates = thread_tem_candidates + 1
-              IF (grad_satisfied) thread_grad_candidates = thread_grad_candidates + 1
               ! Check if we need to expand array
               IF (thread_offset + thread_count >= SIZE(cpcl) - 1000) THEN
                 PRINT *, "ERROR: Thread ", thread_id, " approaching array bounds. Aborting."
@@ -343,8 +328,6 @@
               
               ! Proximity check within this thread's region
               should_add = .TRUE.
-              
-              ! Check against candidates already found by this thread
               DO i = 1, thread_count
                 IF (ABS(cpcl(thread_offset + i)%ind(1) - n1) <= opts%cp_search_radius .AND. &
                     ABS(cpcl(thread_offset + i)%ind(2) - n2) <= opts%cp_search_radius .AND. &
@@ -353,9 +336,7 @@
                   EXIT
                 END IF
               END DO
-              
               IF (should_add) THEN
-                ! Add candidate directly to thread's section of final array
                 thread_count = thread_count + 1
                 cpcl(thread_offset + thread_count)%ind = (/n1,n2,n3/)
                 cpcl(thread_offset + thread_count)%grad = grad
@@ -368,10 +349,7 @@
       END DO
       
       PRINT *, "Thread ", thread_id, " finished with ", thread_count, " candidates"
-      PRINT *, "  - TEM criterion candidates: ", thread_tem_candidates
-      PRINT *, "  - Gradient criterion candidates: ", thread_grad_candidates
       
-      ! Atomic update of total count
       !$OMP ATOMIC
       cptnum = cptnum + thread_count
       
@@ -397,35 +375,6 @@
     END IF
     
     PRINT *, "Final candidate count: ", cptnum
-    
-    ! Sort the candidate list by grid index before reduction
-    CALL SortCPLByIndex(cpcl, cptnum)
-    
-    ! Debug: Print some statistics about the candidates
-    IF (cptnum > 0) THEN
-      min_grad = HUGE(1.0_q2)
-      max_grad = -HUGE(1.0_q2)
-      min_tem = HUGE(1.0_q2)
-      max_tem = -HUGE(1.0_q2)
-      DO i = 1, cptnum
-        min_grad = MIN(min_grad, SUM(cpcl(i)%grad * cpcl(i)%grad))
-        max_grad = MAX(max_grad, SUM(cpcl(i)%grad * cpcl(i)%grad))
-        min_tem = MIN(min_tem, MAXVAL(ABS(cpcl(i)%r)))
-        max_tem = MAX(max_tem, MAXVAL(ABS(cpcl(i)%r)))
-      END DO
-      PRINT *, "=== DEBUG STATISTICS ==="
-      PRINT *, "Gradient magnitude range: ", SQRT(min_grad), " to ", SQRT(max_grad)
-      PRINT *, "TEM value range: ", min_tem, " to ", max_tem
-      PRINT *, "Gradient threshold: ", opts%par_gradfloor
-      PRINT *, "TEM threshold: ", 1.5 + opts%par_tem
-      PRINT *, "=== END DEBUG STATISTICS ==="
-    END IF
-    
-    ! Post-processing: filter out candidates within proximity
-    PRINT *, "Before proximity filtering: ", cptnum, " candidates"
-    CALL FilterDuplicateCandidates(cpcl, cptnum, opts)
-    PRINT *, "After proximity filtering: ", cptnum, " candidates"
-    
   END SUBROUTINE GetCPCL_Spatial
 
   ! Helper: Sort candidate list by grid index (ind(1), ind(2), ind(3))
