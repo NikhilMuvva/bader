@@ -328,18 +328,8 @@
                 EXIT
               END IF
               
-              ! Proximity check within this thread's region
-              should_add = .TRUE.
-              
-              ! Check against candidates already found by this thread
-              DO i = 1, thread_count
-                IF (ABS(cpcl(thread_offset + i)%ind(1) - n1) <= opts%cp_search_radius .AND. &
-                    ABS(cpcl(thread_offset + i)%ind(2) - n2) <= opts%cp_search_radius .AND. &
-                    ABS(cpcl(thread_offset + i)%ind(3) - n3) <= opts%cp_search_radius) THEN
-                  should_add = .FALSE.
-                  EXIT
-                END IF
-              END DO
+              ! Use same proxy check as serial version
+              should_add = .NOT. ProxyToCPCandidate(p, opts, cpcl, cptnum, chg)
               
               IF (should_add) THEN
                 ! Add candidate directly to thread's section of final array
@@ -867,7 +857,6 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
           PRINT *, 'Number of nuclear, bond, ring and cage  critical point &
             counts : ', ucpCounts(:)
           ! Before reduction, sort the candidate list by grid index
-          CALL SortCPLByIndex(cpcl, cptnum)
           ! remove duplicate CPs
           isReduced = .FALSE.
           isReducible = .TRUE.
