@@ -866,6 +866,8 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
           PRINT *, 'Number of critical point count: ', ucptnum
           PRINT *, 'Number of nuclear, bond, ring and cage  critical point &
             counts : ', ucpCounts(:)
+          ! Before reduction, sort the candidate list by grid index
+          CALL SortCPLByIndex(cpcl, cptnum)
           ! remove duplicate CPs
           isReduced = .FALSE.
           isReducible = .TRUE.
