@@ -876,7 +876,7 @@ END SUBROUTINE StaticCheckMultithread
           isReduced = .FALSE.
           isReducible = .TRUE.
           DO WHILE ( .NOT. isReduced .AND. isReducible)
-            CALL ReduceCP(cpl,opts,ucptnum,chg,ucpCounts, &
+            CALL ReduceCPMultithread(cpl,opts,ucptnum,chg,ucpCounts, &
               isReduced,LDM_RecordCPRLight,LDM_ReduceCP, isReducible)
           END DO
           
@@ -913,7 +913,7 @@ END SUBROUTINE StaticCheckMultithread
             isReduced = .FALSE.
             isReducible = .TRUE.
             DO WHILE ( .NOT. isReduced .AND. isReducible)
-              CALL ReduceCP(cpl,opts,ucptnum,chg,ucpCounts, &
+              CALL ReduceCPMultithread(cpl,opts,ucptnum,chg,ucpCounts, &
                 isReduced,LDM_RecordCPRLight, &
                 LDM_ReduceCP,isReducible)
             END DO
@@ -3163,6 +3163,96 @@ END SUBROUTINE StaticCheckMultithread
       IF (LDM) PRINT *, 'The number of duplicate CP found is', dupcount
       DEALLOCATE(rcpl)
     END SUBROUTINE ReduceCP
+
+    SUBROUTINE ReduceCPMultithread(cpl, opts, ucptnum, chg, ucpCounts, &
+      isReduced, LDM_RecordCPRLight, LDM, isReducible)
+
+  USE omp_lib
+
+  TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl, rcpl
+  TYPE(charge_obj) :: chg
+  TYPE(options_obj) :: opts
+  REAL(q2), DIMENSION(3) :: avgR
+  INTEGER, DIMENSION(4) :: ucpCounts, rcpCounts
+  INTEGER :: ucptnum
+  INTEGER :: i, j, nUCPTNum, weight, dupCount
+  LOGICAL :: isReduced, LDM_RecordCPRLight, LDM, switch, isReducible
+
+  IF (LDM) PRINT *, 'Checking for duplicate CP'
+  isReduced = .TRUE.
+  isReducible = .TRUE.
+  dupCount = 0
+  rcpCounts = 0
+  ALLOCATE(rcpl(SIZE(cpl)))
+  nUCPTNum = 0
+
+!$OMP PARALLEL DEFAULT(NONE) &
+!$OMP SHARED(cpl, opts, chg, rcpl, rcpCounts, dupCount, isReduced, isReducible, ucptnum, LDM_RecordCPRLight, LDM, nUCPTNum) &
+!$OMP PRIVATE(i, j, avgR, weight, switch)
+
+!$OMP DO SCHEDULE(dynamic)
+  OUTER: DO i = 1, ucptnum
+    weight = 1
+    avgR = cpl(i)%truer
+    switch = .TRUE.
+
+    IF (cpl(i)%hasProxy) CYCLE
+
+    DO j = i+1, ucptnum
+      IF (Mag(cpl(i)%truer - cpl(j)%truer) .LE. opts%cp_min_distance) THEN
+
+        !$OMP CRITICAL(update_proxy)
+        cpl(j)%hasProxy = .TRUE.
+        !$OMP END CRITICAL
+
+        avgR = (avgR * weight + cpl(j)%truer) / (weight + 1)
+        weight = weight + 1
+
+        !$OMP ATOMIC
+        dupCount = dupCount + 1
+
+        IF (cpl(i)%negCount /= cpl(j)%negCount) THEN
+          IF (cpl(i)%negCount == 3 .OR. cpl(j)%negCount == 3) CYCLE
+          IF (switch) THEN
+            PRINT *, 'ERROR: TWO TYPES OF CP ARE TOO CLOSE TO EACH OTHER.'
+            PRINT *, 'The CPs ', i, j, 'have number of negative eigenvalues: ', cpl(i)%negCount, cpl(j)%negCount
+            PRINT *, ''//achar(27)//'[31m STOPPING. NO MORE CP WILL BE OUTPUT.'//achar(27)//'[0m'
+            switch = .FALSE.
+            isReducible = .FALSE.
+            isReduced = .FALSE.
+            IF (.NOT. opts%ignore_cp_conflict) THEN
+              EXIT OUTER
+            END IF
+          END IF
+        END IF
+
+        isReduced = .FALSE.
+      END IF
+    END DO
+
+    !$OMP CRITICAL(write_cp)
+    nUCPTNum = nUCPTNum + 1
+    CALL RecordCPRLight(avgR, chg, rcpl, nUCPTNum, rcpCounts, cpl(i)%ind, .FALSE.)
+    !$OMP END CRITICAL
+
+  END DO OUTER
+!$OMP END DO
+!$OMP END PARALLEL
+
+  CALL ReplaceCPL(cpl, rcpl)
+
+  DO i = 1, SIZE(cpl)
+    cpl(i)%isUnique = .TRUE.
+  END DO
+
+  ucpCounts = rcpCounts
+  ucptnum = nUCPTNum
+
+  IF (LDM) PRINT *, 'The number of duplicate CP found is', dupCount
+  DEALLOCATE(rcpl)
+
+END SUBROUTINE ReduceCPMultithread
+
 
     SUBROUTINE ReduceCPStatic(cp_static,ucptnum,ucpCounts,isReduced,opts)
       TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cp_static, reduced_cp_static
