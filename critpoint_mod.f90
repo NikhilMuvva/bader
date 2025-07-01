@@ -258,14 +258,12 @@
     REAL(q2), DIMENSION(3) :: tem,trueR,grad
 
     INTEGER, DIMENSION(3) :: p
-    INTEGER :: n1,n2,n3,cptnum,i,j
+    INTEGER :: n1,n2,n3,cptnum,i
 
     ! Variables for OpenMP parallelism
     INTEGER :: num_threads, thread_id
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER :: thread_offset, thread_count
-    INTEGER :: estimated_candidates
-    LOGICAL :: should_add, tem_satisfied, grad_satisfied
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
     
 
@@ -275,6 +273,7 @@
     CALL omp_set_num_threads(num_threads)
     
     ! Pre-allocate array based on grid size (estimate 1% of grid points as candidates)
+    INTEGER :: estimated_candidates
     estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 100
     IF (SIZE(cpcl) < estimated_candidates) THEN
       DEALLOCATE(cpcl)
@@ -285,7 +284,7 @@
     PRINT *, "Grid size: ", chg%npts(1), "x", chg%npts(2), "x", chg%npts(3)
     PRINT *, "Estimated candidates: ", estimated_candidates
 
-    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_offset,thread_count,tem_satisfied,grad_satisfied,should_add,i)
+    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_offset,thread_count)
       thread_id = omp_get_thread_num() + 1
       
       ! Calculate spatial region for this thread
@@ -316,33 +315,19 @@
             trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
             tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
             
-            tem_satisfied = ALL(tem <= 1.5 + opts%par_tem )
-            grad_satisfied = (SUM(grad*grad) <= (opts%par_gradfloor)**2 )
-            
-            IF (tem_satisfied .OR. grad_satisfied) THEN
+            IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
               ! Check if we need to expand array
-              IF (thread_offset + thread_count >= SIZE(cpcl) - 1000) THEN
-                PRINT *, "ERROR: Thread ", thread_id, " approaching array bounds. Aborting."
+              IF (thread_offset + thread_count >= SIZE(cpcl)) THEN
+                PRINT *, "ERROR: Thread ", thread_id, " exceeded array bounds. Aborting."
                 EXIT
               END IF
               
-              ! Proximity check within this thread's region
-              should_add = .TRUE.
-              DO i = 1, thread_count
-                IF (ABS(cpcl(thread_offset + i)%ind(1) - n1) <= opts%cp_search_radius .AND. &
-                    ABS(cpcl(thread_offset + i)%ind(2) - n2) <= opts%cp_search_radius .AND. &
-                    ABS(cpcl(thread_offset + i)%ind(3) - n3) <= opts%cp_search_radius) THEN
-                  should_add = .FALSE.
-                  EXIT
-                END IF
-              END DO
-              IF (should_add) THEN
-                thread_count = thread_count + 1
-                cpcl(thread_offset + thread_count)%ind = (/n1,n2,n3/)
-                cpcl(thread_offset + thread_count)%grad = grad
-                cpcl(thread_offset + thread_count)%hasProxy = .FALSE.
-                cpcl(thread_offset + thread_count)%r = tem
-              END IF
+              ! Add candidate directly to thread's section of final array
+              thread_count = thread_count + 1
+              cpcl(thread_offset + thread_count)%ind = (/n1,n2,n3/)
+              cpcl(thread_offset + thread_count)%grad = grad
+              cpcl(thread_offset + thread_count)%hasProxy = .FALSE.
+              cpcl(thread_offset + thread_count)%r = tem
             END IF
           END DO
         END DO
