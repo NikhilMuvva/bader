@@ -258,9 +258,7 @@
 
     INTEGER, DIMENSION(3) :: p
     INTEGER :: n1,n2,n3,cptnum,i,j
-    num_threads = omp_get_max_threads()
-    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10
-    
+
     ! Variables for OpenMP parallelism
     INTEGER :: num_threads, thread_id
     INTEGER :: n1_start, n1_end, n1_chunk
@@ -268,21 +266,15 @@
     INTEGER :: estimated_candidates
     LOGICAL :: should_add
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
-
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:,:) :: thread_cpcl_all
-    INTEGER, ALLOCATABLE :: thread_counts(:)
-    ALLOCATE(thread_cpcl_all(estimated_candidates / num_threads, num_threads))
-    ALLOCATE(thread_counts(num_threads))
-    thread_counts = 0
     
 
     ! Initialize OpenMP variables
     cptnum = 0
-    
+    num_threads = omp_get_max_threads()
     CALL omp_set_num_threads(num_threads)
     
     ! Pre-allocate array based on grid size (estimate 10% of grid points as candidates)
-    
+    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10
     IF (SIZE(cpcl) < estimated_candidates) THEN
       DEALLOCATE(cpcl)
       ALLOCATE(cpcl(estimated_candidates))
@@ -299,12 +291,6 @@
     PRINT *, "Estimated candidates: ", estimated_candidates
 
     !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_offset,thread_count)
-      ! local array for each thread
-      TYPE(cpc), POINTER :: thread_cpcl(:)
-      INTEGER :: thread_count_local
-      thread_cpcl => thread_cpcl_all(:, thread_id)
-      thread_count_local = 0
-      
       thread_id = omp_get_thread_num() + 1
       
       ! Calculate spatial region for this thread
@@ -342,14 +328,27 @@
                 EXIT
               END IF
               
-              IF (.NOT. ProxyToCPCandidate(p, opts, thread_cpcl, thread_count_local, chg)) THEN
-                thread_count_local = thread_count_local + 1
-                thread_cpcl(thread_count_local)%ind = p
-                thread_cpcl(thread_count_local)%grad = grad
-                thread_cpcl(thread_count_local)%hasProxy = .FALSE.
-                thread_cpcl(thread_count_local)%r = tem
+              ! Proximity check within this thread's region
+              should_add = .TRUE.
+              
+              ! Check against candidates already found by this thread
+              DO i = 1, thread_count
+                IF (ABS(cpcl(thread_offset + i)%ind(1) - n1) <= opts%cp_search_radius .AND. &
+                    ABS(cpcl(thread_offset + i)%ind(2) - n2) <= opts%cp_search_radius .AND. &
+                    ABS(cpcl(thread_offset + i)%ind(3) - n3) <= opts%cp_search_radius) THEN
+                  should_add = .FALSE.
+                  EXIT
+                END IF
+              END DO
+              
+              IF (should_add) THEN
+                ! Add candidate directly to thread's section of final array
+                thread_count = thread_count + 1
+                cpcl(thread_offset + thread_count)%ind = (/n1,n2,n3/)
+                cpcl(thread_offset + thread_count)%grad = grad
+                cpcl(thread_offset + thread_count)%hasProxy = .FALSE.
+                cpcl(thread_offset + thread_count)%r = tem
               END IF
-
             END IF
           END DO
         END DO
@@ -360,40 +359,27 @@
       ! Atomic update of total count
       !$OMP ATOMIC
       cptnum = cptnum + thread_count
-      thread_counts(thread_id) = thread_count_local
+      
     !$OMP END PARALLEL
-
-    ! Merge thread-local results into global cpcl
-    cptnum = SUM(thread_counts)
-    IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
-    ALLOCATE(cpcl(cptnum))
-    j = 0
-    DO i = 1, num_threads
-      DO k = 1, thread_counts(i)
-        j = j + 1
-        cpcl(j) = thread_cpcl_all(k, i)
-      END DO
-    END DO
-
     
     PRINT *, "Total candidates found: ", cptnum
     
     ! Compact the array to remove empty slots
-    ! IF (cptnum < SIZE(cpcl)) THEN
-    !  ALLOCATE(cpclt(cptnum))
-    !  j = 1
-    !  DO i = 1, SIZE(cpcl)
-    !    IF (cpcl(i)%ind(1) /= 0 .OR. cpcl(i)%ind(2) /= 0 .OR. cpcl(i)%ind(3) /= 0) THEN
-    !      cpclt(j) = cpcl(i)
-    !      j = j + 1
-    !      IF (j > cptnum) EXIT
-    !    END IF
-    !  END DO
-    !  DEALLOCATE(cpcl)
-    !  ALLOCATE(cpcl(cptnum))
-    !  cpcl = cpclt
-    !  DEALLOCATE(cpclt)
-    ! END IF
+    IF (cptnum < SIZE(cpcl)) THEN
+      ALLOCATE(cpclt(cptnum))
+      j = 1
+      DO i = 1, SIZE(cpcl)
+        IF (cpcl(i)%ind(1) /= 0 .OR. cpcl(i)%ind(2) /= 0 .OR. cpcl(i)%ind(3) /= 0) THEN
+          cpclt(j) = cpcl(i)
+          j = j + 1
+          IF (j > cptnum) EXIT
+        END IF
+      END DO
+      DEALLOCATE(cpcl)
+      ALLOCATE(cpcl(cptnum))
+      cpcl = cpclt
+      DEALLOCATE(cpclt)
+    END IF
     
     PRINT *, "Final candidate count: ", cptnum
 
@@ -401,129 +387,8 @@
     !  PRINT *, "Before proximity filtering: ", cptnum, " candidates"
     !CALL FilterDuplicateCandidates(cpcl, cptnum, opts)
     !PRINT *, "After proximity filtering: ", cptnum, " candidates"
-    DEALLOCATE(thread_cpcl_all)
-    DEALLOCATE(thread_counts)
-
+    
   END SUBROUTINE GetCPCL_Spatial
-
-  SUBROUTINE GetCPCL_Spatial(bdr, chg, cpl, cpcl, opts, cptnum)
-    TYPE(bader_obj) :: bdr
-    TYPE(charge_obj) :: chg
-    TYPE(options_obj) :: opts
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl, cpcl
-
-    REAL(q2), DIMENSION(3,3) :: hessianMatrix
-    REAL(q2), DIMENSION(3) :: tem, trueR, grad
-
-    INTEGER, DIMENSION(3) :: p
-    INTEGER :: n1, n2, n3, i, j, k
-
-    INTEGER :: num_threads, thread_id
-    INTEGER :: n1_start, n1_end, n1_chunk
-    INTEGER :: thread_offset
-    INTEGER :: estimated_candidates
-    INTEGER :: thread_count_local
-    INTEGER, ALLOCATABLE :: thread_counts(:)
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:,:) :: thread_cpcl_all
-
-    ! Assign these BEFORE allocations or use
-    num_threads = omp_get_max_threads()
-    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10
-
-    ALLOCATE(thread_cpcl_all(estimated_candidates / num_threads, num_threads))
-    ALLOCATE(thread_counts(num_threads))
-    thread_counts = 0
-
-    cptnum = 0
-    CALL omp_set_num_threads(num_threads)
-
-    ! Pre-allocate cpcl and cpl if needed
-    IF (.NOT. ALLOCATED(cpcl) .OR. SIZE(cpcl) < estimated_candidates) THEN
-      IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
-      ALLOCATE(cpcl(estimated_candidates))
-    END IF
-
-    IF (.NOT. ALLOCATED(cpl) .OR. SIZE(cpl) < estimated_candidates) THEN
-      IF (ALLOCATED(cpl)) DEALLOCATE(cpl)
-      ALLOCATE(cpl(estimated_candidates))
-    END IF
-
-    PRINT *, "Starting GetCPCL_Spatial with ", num_threads, " threads"
-    PRINT *, "Grid size: ", chg%npts(1), "x", chg%npts(2), "x", chg%npts(3)
-    PRINT *, "Estimated candidates: ", estimated_candidates
-
-    !$OMP PARALLEL PRIVATE(n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_count_local,thread_offset)
-      thread_id = omp_get_thread_num() + 1
-      TYPE(cpc), POINTER :: thread_cpcl(:)
-      thread_cpcl => thread_cpcl_all(:, thread_id)
-      thread_count_local = 0
-
-      n1_chunk = chg%npts(1) / num_threads
-      n1_start = (thread_id - 1) * n1_chunk + 1
-      IF (thread_id == num_threads) THEN
-        n1_end = chg%npts(1)
-      ELSE
-        n1_end = thread_id * n1_chunk
-      END IF
-
-      thread_offset = (thread_id - 1) * (estimated_candidates / num_threads)
-
-      PRINT *, "Thread ", thread_id, " processing n1=", n1_start, " to ", n1_end
-
-      DO n1 = n1_start, n1_end
-        DO n2 = 1, chg%npts(2)
-          DO n3 = 1, chg%npts(3)
-            IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) CYCLE
-
-            p = (/n1, n2, n3/)
-            trueR = (/REAL(n1,q2), REAL(n2,q2), REAL(n3,q2)/)
-            tem = CalcTEMGrid(p, chg, grad, hessianMatrix)
-
-            IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
-              IF (thread_count_local >= SIZE(thread_cpcl)) THEN
-                PRINT *, "ERROR: Thread ", thread_id, " array overflow. Aborting."
-                EXIT
-              END IF
-
-              IF (.NOT. ProxyToCPCandidate(p, opts, thread_cpcl, thread_count_local, chg)) THEN
-                thread_count_local = thread_count_local + 1
-                thread_cpcl(thread_count_local)%ind = p
-                thread_cpcl(thread_count_local)%grad = grad
-                thread_cpcl(thread_count_local)%hasProxy = .FALSE.
-                thread_cpcl(thread_count_local)%r = tem
-              END IF
-            END IF
-          END DO
-        END DO
-      END DO
-
-      PRINT *, "Thread ", thread_id, " finished with ", thread_count_local, " candidates"
-
-      !$OMP ATOMIC
-      cptnum = cptnum + thread_count_local
-      thread_counts(thread_id) = thread_count_local
-
-    !$OMP END PARALLEL
-
-    cptnum = SUM(thread_counts)
-
-    IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
-    ALLOCATE(cpcl(cptnum))
-
-    j = 0
-    DO i = 1, num_threads
-      DO k = 1, thread_counts(i)
-        j = j + 1
-        cpcl(j) = thread_cpcl_all(k, i)
-      END DO
-    END DO
-
-    PRINT *, "Total candidates found: ", cptnum
-
-    DEALLOCATE(thread_cpcl_all)
-    DEALLOCATE(thread_counts)
-  END SUBROUTINE GetCPCL_Spatial
-
 
   SUBROUTINE GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
     TYPE(bader_obj) :: bdr
@@ -606,8 +471,6 @@
       END DO
     END DO OUTER
   END SUBROUTINE GetCPCL
-
-  
 
  SUBROUTINE SearchWithCPCLMultiThread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
   USE omp_lib
