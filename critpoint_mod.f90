@@ -330,7 +330,7 @@
               
               ! Use same proxy check as serial version
               should_add = .NOT. ProxyToCPCandidate(p, opts, cpcl, cptnum, chg)
-              
+              IF (.NOT. should_add) PRINT *, "Filtered candidate at: ", p
               IF (should_add) THEN
                 ! Add candidate directly to thread's section of final array
                 thread_count = thread_count + 1
