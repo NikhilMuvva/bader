@@ -254,7 +254,7 @@
     ! Variables for OpenMP parallelism
     INTEGER :: num_threads, thread_id
     INTEGER :: n1_start, n1_end, n1_chunk
-    INTEGER :: thread_offset, thread_count
+    INTEGER :: thread_offset
     INTEGER :: estimated_candidates
     LOGICAL :: should_add
     TYPE(cpc), ALLOCATABLE :: cpclt(:)
@@ -283,8 +283,9 @@
     PRINT *, "Estimated candidates: ", estimated_candidates
 
     !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_offset,thread_count)
+      INTEGER :: thread_count
       thread_id = omp_get_thread_num() + 1
-      
+      thread_count = 0
       ! Calculate spatial region for this thread
       n1_chunk = chg%npts(1) / num_threads
       n1_start = (thread_id - 1) * n1_chunk + 1
@@ -296,7 +297,7 @@
       
       ! Calculate offset in final array for this thread
       thread_offset = (thread_id - 1) * (estimated_candidates / num_threads)
-      thread_count = 0
+     
       
       PRINT *, "Thread ", thread_id, " processing n1=", n1_start, " to ", n1_end
       
