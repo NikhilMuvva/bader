@@ -17,7 +17,7 @@
     IMPLICIT NONE
 
     PRIVATE 
-    PUBLIC :: critpoint_find, StaticCheckMultithread
+    PUBLIC :: critpoint_find, StaticCheck
 
     TYPE static_cp_list
       CHARACTER(LEN=1) :: cp_type
@@ -680,7 +680,7 @@ END SUBROUTINE StaticCheckMultithread
       isUniqueTest, isReduced, phmrCompliant, isReducible
 
     IF (opts%static_check) THEN
-      CALL StaticCheckMultithread(bdr,chg,opts,ions)
+      CALL StaticCheck(bdr,chg,opts,ions)
     ELSE 
       !CALL PrintFlavorText()
       ! below are variables for least sqaures gradient
