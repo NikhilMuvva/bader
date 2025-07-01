@@ -23,6 +23,9 @@
       CHARACTER(LEN=1) :: cp_type
       REAL(q2),DIMENSION(3) :: pos_direct
     END TYPE
+    TYPE ThreadCPCL
+      TYPE(cpc), ALLOCATABLE :: list(:)
+    END TYPE ThreadCPCL
 
     TYPE cpc ! stands for critical point candidate
       INTEGER, DIMENSION(3) :: ind  ! these are the indices of the cp
@@ -54,9 +57,7 @@
 !NOTE: this subroutine should be called after refine_edge
 !      in order to restrict the calculation to edge points
 !-----------------------------------------------------------------------------------!
-  TYPE ThreadCPCL
-    TYPE(cpc), ALLOCATABLE :: list(:)
-  END TYPE ThreadCPCL
+
 
   SUBROUTINE GetCPCL_Multithreaded(bdr,chg,cpl,cpcl,opts,cptnum)
     TYPE(bader_obj) :: bdr
