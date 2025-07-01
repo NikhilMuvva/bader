@@ -237,7 +237,7 @@
     
     PRINT *, "Filtering complete!"
     
-SUBROUTINE GetCPCL_Spatial(bdr, chg, cpl, cpcl, opts, cptnum)
+  SUBROUTINE GetCPCL_Spatial(bdr, chg, cpl, cpcl, opts, cptnum)
     USE omp_lib
     IMPLICIT NONE
 
