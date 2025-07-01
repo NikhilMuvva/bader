@@ -237,9 +237,7 @@
     
     PRINT *, "Filtering complete!"
     
-  END SUBROUTINE FilterDuplicateCandidates
-
-  SUBROUTINE GetCPCL_Spatial(bdr, chg, cpl, cpcl, opts, cptnum)
+SUBROUTINE GetCPCL_Spatial(bdr, chg, cpl, cpcl, opts, cptnum)
     USE omp_lib
     IMPLICIT NONE
 
@@ -307,6 +305,10 @@
             END DO
 
             IF (should_add) THEN
+              IF (thread_count_local >= SIZE(thread_cpcl)) THEN
+                PRINT *, "Thread", thread_id, "exceeded thread_cpcl allocation."
+                CYCLE
+              END IF
               thread_count_local = thread_count_local + 1
               thread_cpcl(thread_count_local)%ind = p
               thread_cpcl(thread_count_local)%grad = grad
@@ -327,7 +329,10 @@
   !$OMP END PARALLEL
 
     cptnum = SUM(thread_counts)
+
+    IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
     ALLOCATE(cpcl(cptnum))
+
     j = 0
     DO i = 1, num_threads
       DO k = 1, thread_counts(i)
