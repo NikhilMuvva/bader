@@ -274,7 +274,7 @@
     CALL omp_set_num_threads(num_threads)
     
     ! Pre-allocate array based on grid size (estimate 10% of grid points as candidates)
-    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 2
+    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10
     IF (SIZE(cpcl) < estimated_candidates) THEN
       DEALLOCATE(cpcl)
       ALLOCATE(cpcl(estimated_candidates))
@@ -328,9 +328,19 @@
                 EXIT
               END IF
               
-              ! Use same proxy check as serial version
-              should_add = .NOT. ProxyToCPCandidate(p, opts, cpcl, cptnum, chg)
-              IF (.NOT. should_add) PRINT *, "Filtered candidate at: ", p
+              ! Proximity check within this thread's region
+              should_add = .TRUE.
+              
+              ! Check against candidates already found by this thread
+              DO i = 1, thread_count
+                IF (ABS(cpcl(thread_offset + i)%ind(1) - n1) <= opts%cp_search_radius .AND. &
+                    ABS(cpcl(thread_offset + i)%ind(2) - n2) <= opts%cp_search_radius .AND. &
+                    ABS(cpcl(thread_offset + i)%ind(3) - n3) <= opts%cp_search_radius) THEN
+                  should_add = .FALSE.
+                  EXIT
+                END IF
+              END DO
+              
               IF (should_add) THEN
                 ! Add candidate directly to thread's section of final array
                 thread_count = thread_count + 1
