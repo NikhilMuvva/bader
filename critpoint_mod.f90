@@ -479,93 +479,7 @@
     END DO OUTER
   END SUBROUTINE GetCPCL
 
-  SUBROUTINE GetCPCL_Spatial2(bdr,chg,cpl,cpcl,opts,cptnum)
-
-    TYPE(bader_obj) :: bdr
-    TYPE(charge_obj) :: chg
-    TYPE(options_obj) :: opts
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl,cpcl
-
-    REAL(q2), DIMENSION(3,3) :: hessianMatrix
-    REAL(q2), DIMENSION(3) :: tem,trueR,grad
-    INTEGER, DIMENSION(3) :: p
-    INTEGER :: n1,n2,n3,i,j,k,cptnum
-
-    INTEGER :: num_threads
-    INTEGER, ALLOCATABLE :: thread_counts(:)
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:,:), TARGET :: thread_cpcl_all  ! (max_candidates, num_threads)
-
-    INTEGER :: estimated_candidates
-
-    ! Prep
-    num_threads = omp_get_max_threads()
-    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10
-    ALLOCATE(thread_counts(num_threads))
-    ALLOCATE(thread_cpcl_all(estimated_candidates / num_threads, num_threads))
-    thread_counts = 0
-
-    !$OMP PARALLEL DEFAULT(NONE) SHARED(chg,bdr,opts,thread_cpcl_all,thread_counts) PRIVATE(n1,n2,n3,p,trueR,tem,grad,i,j)
-    INTEGER :: tid, n1_start, n1_end, n1_chunk, local_count
-    TYPE(cpc), POINTER :: my_cpcl(:)
-
-    tid = omp_get_thread_num() + 1
-    my_cpcl => thread_cpcl_all(:,tid)
-    local_count = 0
-
-    n1_chunk = chg%npts(1) / num_threads
-    n1_start = (tid - 1) * n1_chunk + 1
-    IF (tid == num_threads) THEN
-      n1_end = chg%npts(1)
-    ELSE
-      n1_end = tid * n1_chunk
-    END IF
-
-    DO n1 = n1_start, n1_end
-      DO n2 = 1, chg%npts(2)
-        DO n3 = 1, chg%npts(3)
-          IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) CYCLE
-          p = (/n1,n2,n3/)
-          trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
-          tem = CalcTEMGrid(p, chg, grad, hessianMatrix)
-          IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
-            IF (.NOT. ProxyToCPCandidate(p, opts, my_cpcl, local_count, chg)) THEN
-              local_count = local_count + 1
-              my_cpcl(local_count)%ind = p
-              my_cpcl(local_count)%grad = grad
-              my_cpcl(local_count)%hasProxy = .FALSE.
-              my_cpcl(local_count)%r = tem
-            END IF
-          END IF
-        END DO
-      END DO
-    END DO
-
-    thread_counts(tid) = local_count
-    !$OMP END PARALLEL
-
-    ! Count total
-    cptnum = SUM(thread_counts)
-
-    ! Allocate final cpcl
-    IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
-    ALLOCATE(cpcl(cptnum))
-
-    ! Merge all
-    j = 0
-    DO i = 1, num_threads
-      DO k = 1, thread_counts(i)
-        j = j + 1
-        cpcl(j) = thread_cpcl_all(k, i)
-      END DO
-    END DO
-
-    PRINT *, "Total candidates found: ", cptnum
-
-    ! Clean up
-    DEALLOCATE(thread_counts)
-    DEALLOCATE(thread_cpcl_all)
-  END SUBROUTINE GetCPCL_Spatial
-
+  
 
  SUBROUTINE SearchWithCPCLMultiThread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
   USE omp_lib
@@ -941,7 +855,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
       ELSE 
         ! Loop through every grid point once and collect a list of points to start
         ! CP searching trajectories into cpcl, the CP candidate list.
-        CALL GetCPCL_Spatial2(bdr,chg,cpl,cpcl,opts,cptnum)
+        CALL GetCPCL_Spatial(bdr,chg,cpl,cpcl,opts,cptnum)
         IF (cptnum > 100000) THEN
           stat = 0
         ELSE 
