@@ -4419,6 +4419,32 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
 
     END SUBROUTINE
 
+    SUBROUTINE SortCPLByIndex(cpcl, n)
+      TYPE(cpc), DIMENSION(:), INTENT(INOUT) :: cpcl
+      INTEGER, INTENT(IN) :: n
+      INTEGER :: i, j, k
+      TYPE(cpc) :: temp
+      LOGICAL :: swap_needed
+      DO i = 2, n
+        temp = cpcl(i)
+        j = i - 1
+        DO WHILE (j >= 1)
+          swap_needed = .FALSE.
+          DO k = 1, 3
+            IF (cpcl(j)%ind(k) < temp%ind(k)) EXIT
+            IF (cpcl(j)%ind(k) > temp%ind(k)) THEN
+              swap_needed = .TRUE.
+              EXIT
+            END IF
+          END DO
+          IF (.NOT. swap_needed) EXIT
+          cpcl(j+1) = cpcl(j)
+          j = j - 1
+        END DO
+        cpcl(j+1) = temp
+      END DO
+    END SUBROUTINE SortCPLByIndex
+
   END MODULE
 
 
