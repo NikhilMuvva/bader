@@ -474,7 +474,7 @@
     IF (opts%gradMode) THEN
       CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
     ELSE
-      CALL NRTFGP(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
+      CALL NRTFGPMultithread(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
       !PRINT *, "Processed point", i, "isUnique:", cpcl(i)%isUnique
     END IF
 
@@ -516,7 +516,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
          cpcl(i)%isUnique,3000)
       ELSE
          ! Begins newton raphson validation process
-         CALL NRTFGP(bdr,chg,opts,trueR,&
+         CALL NRTFGPMultithread(bdr,chg,opts,trueR,&
          cpcl(i)%isUnique,cpcl(i)%r,cpcl(i)%ind,&
          1000)
       END IF
@@ -748,7 +748,7 @@ END SUBROUTINE StaticCheckMultithread
           cpcl(i)%ind=INT(cps_read(i)%pos_direct(:)*chg%npts(:))+(/1,1,1/)
           PRINT *, "Starting search at assigned index: "
           PRINT *, cpcl(i)%ind
-          CALL NRTFGP(bdr,chg,opts,trueR,cpcl(i)%isUnique,cpcl(i)%r,cpcl(i)%ind,&
+          CALL NRTFGPMultithread(bdr,chg,opts,trueR,cpcl(i)%isUnique,cpcl(i)%r,cpcl(i)%ind,&
           1000)
           PRINT *, "Search trajectory ended at "
           PRINT *, trueR
@@ -832,7 +832,7 @@ END SUBROUTINE StaticCheckMultithread
           cpcl(i)%ind=INT(cps_read(i)%pos_direct(:)*chg%npts(:))+(/1,1,1/)
           PRINT *, "Starting search at assigned index: "
           PRINT *, cpcl(i)%ind
-          CALL NRTFGP(bdr,chg,opts,trueR,cpcl(i)%isUnique,cpcl(i)%r,cpcl(i)%ind,&
+          CALL NRTFGPMultithread(bdr,chg,opts,trueR,cpcl(i)%isUnique,cpcl(i)%r,cpcl(i)%ind,&
           1000)
           PRINT *, "Search trajectory ended at "
           PRINT *, trueR
@@ -876,7 +876,7 @@ END SUBROUTINE StaticCheckMultithread
           isReduced = .FALSE.
           isReducible = .TRUE.
           DO WHILE ( .NOT. isReduced .AND. isReducible)
-            CALL ReduceCPMultithread(cpl,opts,ucptnum,chg,ucpCounts, &
+            CALL ReduceCP(cpl,opts,ucptnum,chg,ucpCounts, &
               isReduced,LDM_RecordCPRLight,LDM_ReduceCP, isReducible)
           END DO
           
@@ -913,7 +913,7 @@ END SUBROUTINE StaticCheckMultithread
             isReduced = .FALSE.
             isReducible = .TRUE.
             DO WHILE ( .NOT. isReduced .AND. isReducible)
-              CALL ReduceCPMultithread(cpl,opts,ucptnum,chg,ucpCounts, &
+              CALL ReduceCP(cpl,opts,ucptnum,chg,ucpCounts, &
                 isReduced,LDM_RecordCPRLight, &
                 LDM_ReduceCP,isReducible)
             END DO
@@ -3163,96 +3163,7 @@ END SUBROUTINE StaticCheckMultithread
       IF (LDM) PRINT *, 'The number of duplicate CP found is', dupcount
       DEALLOCATE(rcpl)
     END SUBROUTINE ReduceCP
-
-    SUBROUTINE ReduceCPMultithread(cpl, opts, ucptnum, chg, ucpCounts, &
-      isReduced, LDM_RecordCPRLight, LDM, isReducible)
-
-  USE omp_lib
-
-  TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl, rcpl
-  TYPE(charge_obj) :: chg
-  TYPE(options_obj) :: opts
-  REAL(q2), DIMENSION(3) :: avgR
-  INTEGER, DIMENSION(4) :: ucpCounts, rcpCounts
-  INTEGER :: ucptnum
-  INTEGER :: i, j, nUCPTNum, weight, dupCount
-  LOGICAL :: isReduced, LDM_RecordCPRLight, LDM, switch, isReducible
-
-  IF (LDM) PRINT *, 'Checking for duplicate CP'
-  isReduced = .TRUE.
-  isReducible = .TRUE.
-  dupCount = 0
-  rcpCounts = 0
-  ALLOCATE(rcpl(SIZE(cpl)))
-  nUCPTNum = 0
-
-!$OMP PARALLEL DEFAULT(NONE) &
-!$OMP SHARED(cpl, opts, chg, rcpl, rcpCounts, dupCount, isReduced, isReducible, ucptnum, LDM_RecordCPRLight, LDM, nUCPTNum) &
-!$OMP PRIVATE(i, j, avgR, weight, switch)
-
-!$OMP DO SCHEDULE(dynamic)
-  OUTER: DO i = 1, ucptnum
-    weight = 1
-    avgR = cpl(i)%truer
-    switch = .TRUE.
-
-    IF (cpl(i)%hasProxy) CYCLE
-
-    DO j = i+1, ucptnum
-      IF (Mag(cpl(i)%truer - cpl(j)%truer) .LE. opts%cp_min_distance) THEN
-
-        !$OMP CRITICAL(update_proxy)
-        cpl(j)%hasProxy = .TRUE.
-        !$OMP END CRITICAL
-
-        avgR = (avgR * weight + cpl(j)%truer) / (weight + 1)
-        weight = weight + 1
-
-        !$OMP ATOMIC
-        dupCount = dupCount + 1
-
-        IF (cpl(i)%negCount /= cpl(j)%negCount) THEN
-          IF (cpl(i)%negCount == 3 .OR. cpl(j)%negCount == 3) CYCLE
-          IF (switch) THEN
-            PRINT *, 'ERROR: TWO TYPES OF CP ARE TOO CLOSE TO EACH OTHER.'
-            PRINT *, 'The CPs ', i, j, 'have number of negative eigenvalues: ', cpl(i)%negCount, cpl(j)%negCount
-            PRINT *, ''//achar(27)//'[31m STOPPING. NO MORE CP WILL BE OUTPUT.'//achar(27)//'[0m'
-            switch = .FALSE.
-            isReducible = .FALSE.
-            isReduced = .FALSE.
-            IF (.NOT. opts%ignore_cp_conflict) THEN
-              EXIT OUTER
-            END IF
-          END IF
-        END IF
-
-        isReduced = .FALSE.
-      END IF
-    END DO
-
-    !$OMP CRITICAL(write_cp)
-    nUCPTNum = nUCPTNum + 1
-    CALL RecordCPRLight(avgR, chg, rcpl, nUCPTNum, rcpCounts, cpl(i)%ind, .FALSE.)
-    !$OMP END CRITICAL
-
-  END DO OUTER
-!$OMP END DO
-!$OMP END PARALLEL
-
-  CALL ReplaceCPL(cpl, rcpl)
-
-  DO i = 1, SIZE(cpl)
-    cpl(i)%isUnique = .TRUE.
-  END DO
-
-  ucpCounts = rcpCounts
-  ucptnum = nUCPTNum
-
-  IF (LDM) PRINT *, 'The number of duplicate CP found is', dupCount
-  DEALLOCATE(rcpl)
-
-END SUBROUTINE ReduceCPMultithread
-
+    
 
     SUBROUTINE ReduceCPStatic(cp_static,ucptnum,ucpCounts,isReduced,opts)
       TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cp_static, reduced_cp_static
@@ -3767,6 +3678,106 @@ END SUBROUTINE ReduceCPMultithread
       truer = truer + nexttem ! this keeps track the total movement
       CALL pbc_r_lat(truer,chg%npts)
     END SUBROUTINE NRTFGP 
+
+    SUBROUTINE NRTFGPMultithread(bdr, chg, opts, trueR, &
+      isUnique, r, ind, stepMax)
+
+  USE omp_lib
+
+  TYPE(bader_obj) :: bdr
+  TYPE(charge_obj) :: chg
+  TYPE(options_obj) :: opts
+  INTEGER, DIMENSION(8,3) :: nnInd
+  INTEGER, DIMENSION(3) :: tempR, ind
+  INTEGER :: stepCount, averageCount, j, stepMax
+  REAL(q2), DIMENSION(10,3) :: temList, rList
+  REAL(q2), DIMENSION(8,3) :: nnGrad
+  REAL(q2), DIMENSION(3) :: grad, averageR, trueR, nexttem, previoustem, &
+        prevGrad, distance, temScale, temCap, r, indR
+  REAL(q2) :: temNormCap
+  LOGICAL :: isUnique
+  LOGICAL :: LDM, LDM_detectCircling
+
+  LDM = .FALSE.
+  LDM_detectCircling = .FALSE.
+  isUnique = .FALSE.
+  temCap = (/1.,1.,1./)
+  temScale = (/1.,1.,1./)
+  temNormCap = 1.
+  stepCount = 1
+  averageCount = 0
+  averageR = (/-1.,-1.,-1./)
+
+  indR(1) = REAL(ind(1),q2)
+  indR(2) = REAL(ind(2),q2)
+  indR(3) = REAL(ind(3),q2)
+
+  nnInd = SimpleNN(indR, chg)
+
+!$OMP PARALLEL DO PRIVATE(j) SHARED(nnInd, chg, nnGrad)
+  DO j = 1, 8
+    nnGrad(j,:) = CDGrad(nnInd, chg)
+  END DO
+!$OMP END PARALLEL DO
+
+  previoustem = CalcTEMLat(trueR, chg, temScale, previousTEM, grad, temNormCap, LDM)
+  trueR = ind + previoustem
+  CALL pbc_r_lat(trueR, chg%npts)
+
+  DO stepCount = 1, stepMax
+    IF (LDM) PRINT *, "This is step ", stepCount
+
+    IF (stepCount >= 1) THEN
+      prevGrad = grad
+    END IF
+
+    CALL pbc_r_lat(trueR, chg%npts)
+    nnInd = SimpleNN(trueR, chg)
+    distance = trueR - nnInd(1,:)
+    nexttem = CalcTEMLat(trueR, chg, temScale, previousTEM, grad, temNormCap, LDM)
+
+    IF (ABS(grad(1)) <= 0.1*opts%par_gradfloor .AND. &
+        ABS(grad(2)) <= 0.1*opts%par_gradfloor .AND. &
+        ABS(grad(3)) <= 0.1*opts%par_gradfloor) THEN
+      isUnique = .TRUE.
+      EXIT
+    END IF
+
+    CALL DetectCircling(stepCount, rList, temList, trueR, nexttem, averageR, &
+          LDM_DetectCircling, ind)
+
+    IF (ALL(averageR /= -1.,1)) THEN
+      trueR = averageR
+      isUnique = .FALSE.
+      EXIT
+    END IF
+
+    previoustem = nexttem
+    tempR(1) = NINT(trueR(1))
+    tempR(2) = NINT(trueR(2))
+    tempR(3) = NINT(trueR(3))
+    CALL pbc(tempR, chg%npts)
+
+    IF (bdr%volnum(tempR(1), tempR(2), tempR(3)) == bdr%bnum + 1) THEN
+      isUnique = .FALSE.
+      EXIT
+    END IF
+
+    IF (ABS(nexttem(1)) .LE. 0.1*opts%par_newtonr .AND. &
+        ABS(nexttem(2)) .LE. 0.1*opts%par_newtonr .AND. &
+        ABS(nexttem(3)) .LE. 0.1*opts%par_newtonr) THEN
+      isUnique = .TRUE.
+      EXIT
+    END IF
+
+    trueR = trueR + nexttem
+  END DO
+
+  trueR = trueR + nexttem
+  CALL pbc_r_lat(trueR, chg%npts)
+
+END SUBROUTINE NRTFGPMultithread
+
 
     ! USED IN THIS MODULE
     ! Follow the charge density on grid points down to local minimums
