@@ -274,7 +274,7 @@
     CALL omp_set_num_threads(num_threads)
     
     ! Pre-allocate array based on grid size (estimate 10% of grid points as candidates)
-    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10
+    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 2
     IF (SIZE(cpcl) < estimated_candidates) THEN
       DEALLOCATE(cpcl)
       ALLOCATE(cpcl(estimated_candidates))
