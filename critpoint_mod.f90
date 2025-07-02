@@ -613,15 +613,24 @@
         END DO
       END DO
     END DO OUTER
-    PRINT *, "First 10 candidate indices:"
-    DO i = 1, MIN(10, cptnum)
+    k = 0
+    DO i = 1, num_threads
+      DO j = 1, thread_counts(i)
+        k = k + 1
+        cpcl(k) = thread_cpcl_all(j, i)
+      END DO
+    END DO
+
+    CALL RemoveGaps(cpcl, cptnum)
+    PRINT *, SIZE(cpcl)
+
+    PRINT *, "candidate indices:"
+    DO i = 1, cptnum
       PRINT *, cpcl(i)%ind
     END DO
-    PRINT *, "Last 10 candidate indices:"
-    DO i = MAX(1, cptnum-9), cptnum
-      PRINT *, cpcl(i)%ind
-    END DO
+
     PRINT *, "Final candidate count: ", cptnum
+    PRINT *, "Final candidate size: ", SIZE(cpcl)
   END SUBROUTINE GetCPCL
 
  SUBROUTINE SearchWithCPCLMultiThread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
@@ -998,7 +1007,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
       ELSE 
         ! Loop through every grid point once and collect a list of points to start
         ! CP searching trajectories into cpcl, the CP candidate list.
-        CALL GetCPCL_Spatial2(bdr,chg,cpl,cpcl,opts,cptnum)
+        CALL GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
         IF (cptnum > 100000) THEN
           stat = 0
         ELSE 
@@ -1013,7 +1022,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
           ! point is within half lattice to another, do not record this new point.
           ALLOCATE(cpRoster(cptnum,3))
           IF (LDM_Trajectories) ALLOCATE(fullcpRoster(cptnum,3))
-          CALL SearchWithCPCLMultiThread(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
+          CALL SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
 
           PRINT *, 'Number of critical point count: ', ucptnum
           PRINT *, 'Number of nuclear, bond, ring and cage  critical point &
