@@ -402,7 +402,7 @@
     TYPE(cpc), ALLOCATABLE, INTENT(OUT) :: cpl(:)
     INTEGER, INTENT(OUT) :: cptnum
 
-    num_threads = omp_get_max_threads()
+    
 
     INTEGER, PARAMETER :: MAX_CANDIDATES_PER_THREAD = 10000
     INTEGER :: num_threads, thread_id, i, j, k, n1, n2, n3
@@ -418,7 +418,7 @@
     LOGICAL :: should_add
 
     ! --- Setup ---
-    
+    num_threads = omp_get_max_threads()
     estimated_candidates = MAX(1, (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10)
     ALLOCATE(thread_cpcl_storage(MAX_CANDIDATES_PER_THREAD, num_threads))
     ALLOCATE(thread_cpcl_all(MAX_CANDIDATES_PER_THREAD, num_threads))
