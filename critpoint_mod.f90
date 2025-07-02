@@ -486,14 +486,11 @@
     CALL RemoveGaps(cpcl, cptnum)
     PRINT *, SIZE(cpcl)
 
-    PRINT *, "First 10 candidate indices:"
-    DO i = 1, MIN(10, cptnum)
+    PRINT *, "candidate indices:"
+    DO i = 1, cptnum
       PRINT *, cpcl(i)%ind
     END DO
-    PRINT *, "Last 10 candidate indices:"
-    DO i = MAX(1, cptnum-9), cptnum
-      PRINT *, cpcl(i)%ind
-    END DO
+
     PRINT *, "Final candidate count: ", cptnum
     DEALLOCATE(thread_cpcl_storage)
     DEALLOCATE(thread_cpcl_all)
