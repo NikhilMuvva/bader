@@ -667,7 +667,9 @@ END SUBROUTINE SearchWithCPCLMultiThread
 SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
     TYPE(bader_obj) :: bdr
     TYPE(charge_obj) :: chg
-    TYPE(cpc), ALLOCATABLE, INTENT(INOUT) :: cpcl(:),cpl
+    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl
+    TYPE(cpc), ALLOCATABLE, INTENT(INOUT) :: cpcl(:)
+
     TYPE(options_obj) :: opts
 
     REAL(q2), DIMENSION(8,3,3) :: nnHes
