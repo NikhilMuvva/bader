@@ -522,6 +522,8 @@
       END IF
     END DO
 
+    cptnum = j
+
     DEALLOCATE(cpcl)
     ALLOCATE(cpcl(cptnum))
     cpcl = cpcl_tmp
@@ -677,7 +679,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
 
     INTEGER, DIMENSION(4) :: ucpCounts
     INTEGER, DIMENSION(2) :: connectedAtoms
-    INTEGER :: i,cptnum,ucptnum       
+    INTEGER :: i    
     DO i = 1, cptnum
       cpcl(i)%isunique = .FALSE.
       temcap = (/1.,1.,1./)
