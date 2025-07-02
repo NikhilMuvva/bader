@@ -405,12 +405,17 @@
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER, ALLOCATABLE :: thread_counts(:)
     TYPE(cpc), ALLOCATABLE, DIMENSION(:,:) :: thread_cpcl_all
-    TYPE(cpc), ALLOCATABLE :: thread_cpcl(:)
     INTEGER :: thread_count_local, estimated_candidates
     REAL(q2), DIMENSION(3,3) :: hessianMatrix
     REAL(q2), DIMENSION(3) :: tem, trueR, grad
     INTEGER, DIMENSION(3) :: p
     LOGICAL :: should_add
+
+    INTEGER, PARAMETER :: MAX_CANDIDATES_PER_THREAD = 100000
+    TYPE(cpc), ALLOCATABLE, TARGET :: thread_cpcl_storage(:,:)
+    TYPE(cpc), POINTER :: thread_cpcl(:)
+
+    ALLOCATE(thread_cpcl_storage(MAX_CANDIDATES_PER_THREAD, num_threads))
 
     ! Setup
     num_threads = omp_get_max_threads()
@@ -424,7 +429,7 @@
 
     !$OMP PARALLEL PRIVATE(n1, n2, n3, p, trueR, tem, grad, thread_id, n1_start, n1_end, n1_chunk, thread_cpcl, thread_count_local, i, should_add)
       thread_id = omp_get_thread_num() + 1
-      ALLOCATE(thread_cpcl(10000))
+      thread_cpcl => thread_cpcl_storage(:, thread_id)
       thread_count_local = 0
 
       n1_chunk = chg%npts(1) / num_threads
