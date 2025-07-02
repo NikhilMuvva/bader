@@ -398,8 +398,8 @@
     TYPE(bader_obj), INTENT(IN) :: bdr
     TYPE(charge_obj), INTENT(IN) :: chg
     TYPE(options_obj), INTENT(IN) :: opts
-    TYPE(cpc), ALLOCATABLE, INTENT(OUT) :: cpcl(:)
-    TYPE(cpc), ALLOCATABLE, INTENT(OUT) :: cpl(:)
+    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl,cpl
+
     INTEGER, INTENT(OUT) :: cptnum
 
     
@@ -667,9 +667,8 @@ END SUBROUTINE SearchWithCPCLMultiThread
 SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
     TYPE(bader_obj) :: bdr
     TYPE(charge_obj) :: chg
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl
-    TYPE(cpc), ALLOCATABLE, INTENT(INOUT) :: cpcl(:)
-
+    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl,cpl
+    
     TYPE(options_obj) :: opts
 
     REAL(q2), DIMENSION(8,3,3) :: nnHes
