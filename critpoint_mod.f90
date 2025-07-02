@@ -444,9 +444,10 @@
       DO n1 = n1_start, n1_end
         DO n2 = 1, chg%npts(2)
           DO n3 = 1, chg%npts(3)
-          IF (MOD(n1, 50) == 0 .AND. thread_id == 1) 
-            PRINT *, "Thread", thread_id, "at n1 =", n1
-            FLUSH(6)
+            IF (MOD(n1, 50) == 0 .AND. thread_id == 1) THEN
+              PRINT *, "Thread", thread_id, "at n1 =", n1
+              FLUSH(6)  ! Unit 6 is usually stdout
+            END IF
             IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) CYCLE
             p = (/n1, n2, n3/)
             trueR = (/REAL(n1,q2), REAL(n2,q2), REAL(n3,q2)/)
