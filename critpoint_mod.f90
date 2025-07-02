@@ -483,6 +483,18 @@
       END DO
     END DO
 
+    IF (ALLOCATED(cpcl)) THEN
+      IF (SIZE(cpcl) > cptnum) THEN
+        TYPE(cpc), ALLOCATABLE :: cpcl_tmp(:)
+        ALLOCATE(cpcl_tmp(cptnum))
+        cpcl_tmp = cpcl(:cptnum)
+        DEALLOCATE(cpcl)
+        ALLOCATE(cpcl(cptnum))
+        cpcl = cpcl_tmp
+        DEALLOCATE(cpcl_tmp)
+      END IF
+    END IF
+
     PRINT *, "First 10 candidate indices:"
     DO i = 1, MIN(10, cptnum)
       PRINT *, cpcl(i)%ind
