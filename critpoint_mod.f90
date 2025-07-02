@@ -152,6 +152,7 @@
       
       PRINT *, "Thread ", thread_id, " finished with ", cptnum_thread, " candidates"
       DEALLOCATE(cpcl_thread)
+      
     !$OMP END PARALLEL
     
     ! Single-threaded proximity filtering to remove duplicates
