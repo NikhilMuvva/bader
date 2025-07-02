@@ -473,8 +473,7 @@
     !$OMP END PARALLEL
 
     cptnum = SUM(thread_counts)
-    IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
-    ALLOCATE(cpcl(cptnum))
+
     k = 0
     DO i = 1, num_threads
       DO j = 1, thread_counts(i)
@@ -483,7 +482,6 @@
       END DO
     END DO
 
-    CALL RemoveGaps(cpcl, cptnum)
     PRINT *, SIZE(cpcl)
 
     PRINT *, "candidate indices:"
@@ -994,7 +992,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
       ELSE 
         ! Loop through every grid point once and collect a list of points to start
         ! CP searching trajectories into cpcl, the CP candidate list.
-        CALL GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
+        CALL GetCPCL_Spatial2(bdr,chg,cpl,cpcl,opts,cptnum)
         IF (cptnum > 100000) THEN
           stat = 0
         ELSE 
