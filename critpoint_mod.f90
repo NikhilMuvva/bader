@@ -679,7 +679,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
 
     INTEGER, DIMENSION(4) :: ucpCounts
     INTEGER, DIMENSION(2) :: connectedAtoms
-    INTEGER :: i    
+    INTEGER :: i,cptnum,ucptnum       
     DO i = 1, cptnum
       cpcl(i)%isunique = .FALSE.
       temcap = (/1.,1.,1./)
@@ -1012,7 +1012,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
           ! point is within half lattice to another, do not record this new point.
           ALLOCATE(cpRoster(cptnum,3))
           IF (LDM_Trajectories) ALLOCATE(fullcpRoster(cptnum,3))
-          CALL SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
+          CALL SearchWithCPCL_MultiThread(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
 
           PRINT *, 'Number of critical point count: ', ucptnum
           PRINT *, 'Number of nuclear, bond, ring and cage  critical point &
