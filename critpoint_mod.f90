@@ -484,6 +484,7 @@
     END DO
 
     CALL RemoveGaps(cpcl, cptnum)
+    PRINT *, SIZE(cpcl)
 
     PRINT *, "First 10 candidate indices:"
     DO i = 1, MIN(10, cptnum)
