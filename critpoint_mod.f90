@@ -483,6 +483,7 @@
       END DO
     END DO
 
+    CALL RemoveGaps(cpcl, cptnum)
 
     PRINT *, SIZE(cpcl)
 
