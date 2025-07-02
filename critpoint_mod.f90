@@ -424,7 +424,7 @@
 
     !$OMP PARALLEL PRIVATE(n1, n2, n3, p, trueR, tem, grad, thread_id, n1_start, n1_end, n1_chunk, thread_cpcl, thread_count_local, i, should_add)
       thread_id = omp_get_thread_num() + 1
-      ALLOCATE(thread_cpcl(100000))
+      ALLOCATE(thread_cpcl(10000))
       thread_count_local = 0
 
       n1_chunk = chg%npts(1) / num_threads
