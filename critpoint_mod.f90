@@ -483,17 +483,7 @@
       END DO
     END DO
 
-    IF (ALLOCATED(cpcl)) THEN
-      IF (SIZE(cpcl) > cptnum) THEN
-        TYPE(cpc), ALLOCATABLE :: cpcl_tmp(:)
-        ALLOCATE(cpcl_tmp(cptnum))
-        cpcl_tmp = cpcl(:cptnum)
-        DEALLOCATE(cpcl)
-        ALLOCATE(cpcl(cptnum))
-        cpcl = cpcl_tmp
-        DEALLOCATE(cpcl_tmp)
-      END IF
-    END IF
+    CALL RemoveGaps(cpcl, cptnum)
 
     PRINT *, "First 10 candidate indices:"
     DO i = 1, MIN(10, cptnum)
@@ -510,6 +500,37 @@
     
 
   END SUBROUTINE GetCPCL_Spatial2
+
+  SUBROUTINE RemoveGaps(cpcl, cptnum)
+    IMPLICIT NONE
+    TYPE(cpc), ALLOCATABLE, INTENT(INOUT) :: cpcl(:)
+    INTEGER, INTENT(INOUT) :: cptnum
+
+    TYPE(cpc), ALLOCATABLE :: cpcl_tmp(:)
+    INTEGER :: i, j
+
+    IF (.NOT. ALLOCATED(cpcl)) RETURN
+    IF (SIZE(cpcl) == cptnum) RETURN  ! No gaps to remove
+
+    ALLOCATE(cpcl_tmp(cptnum))
+
+    j = 0
+    DO i = 1, SIZE(cpcl)
+      ! Assuming gap entries are marked by zeroed indices
+      IF (ANY(cpcl(i)%ind /= 0)) THEN
+        j = j + 1
+        cpcl_tmp(j) = cpcl(i)
+        IF (j == cptnum) EXIT
+      END IF
+    END DO
+
+    DEALLOCATE(cpcl)
+    ALLOCATE(cpcl(cptnum))
+    cpcl = cpcl_tmp
+    DEALLOCATE(cpcl_tmp)
+
+  END SUBROUTINE RemoveGaps
+
 
   SUBROUTINE GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
     TYPE(bader_obj) :: bdr
