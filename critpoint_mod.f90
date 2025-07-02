@@ -473,7 +473,8 @@
     !$OMP END PARALLEL
 
     cptnum = SUM(thread_counts)
-
+    IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
+    ALLOCATE(cpcl(cptnum))
     k = 0
     DO i = 1, num_threads
       DO j = 1, thread_counts(i)
@@ -481,6 +482,7 @@
         cpcl(k) = thread_cpcl_all(j, i)
       END DO
     END DO
+
 
     PRINT *, SIZE(cpcl)
 
