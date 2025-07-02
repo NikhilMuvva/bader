@@ -446,7 +446,7 @@
             trueR = (/REAL(n1,q2), REAL(n2,q2), REAL(n3,q2)/)
             tem = CalcTEMGrid(p, chg, grad, hessianMatrix)
             IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
-              IF (.NOT. ProxyToCPCandidate(p, opts, thread_cpcl, thread_count_local, chg)) THEN
+              IF (.NOT. ProxyToCPCandidate2(p, opts, thread_cpcl, thread_count_local, chg)) THEN
                 thread_count_local = thread_count_local + 1
                 thread_cpcl(thread_count_local)%ind = p
                 thread_cpcl(thread_count_local)%grad = grad
@@ -2151,6 +2151,28 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
       END DO  
       RETURN
     END FUNCTION ProxyToCPCandidate
+
+    FUNCTION ProxyToCPCandidate2(p, opts, cpl, cptnum, chg)
+      LOGICAL :: ProxyToCPCandidate2
+      INTEGER :: i
+      INTEGER, DIMENSION(3) :: p
+      TYPE(options_obj) :: opts
+      TYPE(cpc), POINTER, DIMENSION(:) :: cpl   ! <-- changed from ALLOCATABLE to POINTER
+      TYPE(charge_obj) :: chg
+      INTEGER :: cptnum
+
+      ProxyToCPCandidate2 = .FALSE.
+
+      DO i = 1, cptnum
+        IF (ABS(cpl(i)%ind(1) - p(1)) <= opts%cp_search_radius .AND. &
+            ABS(cpl(i)%ind(2) - p(2)) <= opts%cp_search_radius .AND. &
+            ABS(cpl(i)%ind(3) - p(3)) <= opts%cp_search_radius) THEN
+          ProxyToCPCandidate2 = .TRUE.
+        END IF
+      END DO
+
+      RETURN
+    END FUNCTION ProxyToCPCandidate2
 
     ! this function should always run. it first checks if things are stuck
     ! this function is for when newton raphson hops between two points
