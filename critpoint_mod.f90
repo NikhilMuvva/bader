@@ -617,7 +617,7 @@
     DO i = 1, cptnum
       PRINT *, cpcl(i)%ind
     END DO
-    PRINT *, "Final candidate count: ", cptnum
+    PRINT *, "Final candidate count: ", SIZE(cpcl)
   END SUBROUTINE GetCPCL
 
  SUBROUTINE SearchWithCPCLMultiThread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
