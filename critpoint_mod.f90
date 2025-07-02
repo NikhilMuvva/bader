@@ -492,6 +492,7 @@
     END DO
 
     PRINT *, "Final candidate count: ", cptnum
+    PRINT *, "Final candidate size: ", SIZE(cpcl)
     DEALLOCATE(thread_cpcl_storage)
     DEALLOCATE(thread_cpcl_all)
     DEALLOCATE(thread_counts)
@@ -997,7 +998,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
       ELSE 
         ! Loop through every grid point once and collect a list of points to start
         ! CP searching trajectories into cpcl, the CP candidate list.
-        CALL GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
+        CALL GetCPCL_Spatial2(bdr,chg,cpl,cpcl,opts,cptnum)
         IF (cptnum > 100000) THEN
           stat = 0
         ELSE 
