@@ -417,7 +417,7 @@
     LOGICAL :: should_add
 
     ! --- Setup ---
-        PRINT *, "yay"
+    PRINT *, "yay"
     num_threads = omp_get_max_threads()
     estimated_candidates = MAX(1, (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10)
     ALLOCATE(thread_cpcl_storage(MAX_CANDIDATES_PER_THREAD, num_threads))
@@ -444,13 +444,14 @@
       DO n1 = n1_start, n1_end
         DO n2 = 1, chg%npts(2)
           DO n3 = 1, chg%npts(3)
+          IF (MOD(n1, 50) == 0 .AND. thread_id == 1) PRINT *, "Thread", thread_id, "at n1 =", n1
             IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) CYCLE
             p = (/n1, n2, n3/)
             trueR = (/REAL(n1,q2), REAL(n2,q2), REAL(n3,q2)/)
             tem = CalcTEMGrid(p, chg, grad, hessianMatrix)
             IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
-              IF (MOD(n1, 50) == 0 .AND. thread_id == 1) PRINT *, "Thread", thread_id, "at n1 =", n1
               IF (.NOT. ProxyToCPCandidate2(p, opts, thread_cpcl, thread_count_local, chg)) THEN
+                
                 thread_count_local = thread_count_local + 1
                 thread_cpcl(thread_count_local)%ind = p
                 thread_cpcl(thread_count_local)%grad = grad
