@@ -613,24 +613,11 @@
         END DO
       END DO
     END DO OUTER
-    k = 0
-    DO i = 1, num_threads
-      DO j = 1, thread_counts(i)
-        k = k + 1
-        cpcl(k) = thread_cpcl_all(j, i)
-      END DO
-    END DO
-
-    CALL RemoveGaps(cpcl, cptnum)
-    PRINT *, SIZE(cpcl)
-
-    PRINT *, "candidate indices:"
+    PRINT *, "First 10 candidate indices:"
     DO i = 1, cptnum
       PRINT *, cpcl(i)%ind
     END DO
-
     PRINT *, "Final candidate count: ", cptnum
-    PRINT *, "Final candidate size: ", SIZE(cpcl)
   END SUBROUTINE GetCPCL
 
  SUBROUTINE SearchWithCPCLMultiThread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
