@@ -401,7 +401,7 @@
     TYPE(cpc), ALLOCATABLE, INTENT(OUT) :: cpl(:)
     INTEGER, INTENT(OUT) :: cptnum
 
-    INTEGER, PARAMETER :: MAX_CANDIDATES_PER_THREAD = 100000
+    INTEGER, PARAMETER :: MAX_CANDIDATES_PER_THREAD = 10000
     INTEGER :: num_threads, thread_id, i, j, k, n1, n2, n3
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER :: thread_count_local, estimated_candidates
