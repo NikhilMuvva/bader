@@ -237,49 +237,46 @@
     
     PRINT *, "Filtering complete!"
     
-  SUBROUTINE GetCPCL_Spatial(bdr, chg, cpl, cpcl, opts, cptnum)
+SUBROUTINE GetCPCL_Spatial(bdr, chg, cpl, cpcl, opts, cptnum)
     USE omp_lib
     IMPLICIT NONE
 
-    !==== Types and arguments ====
     TYPE(bader_obj) :: bdr
     TYPE(charge_obj) :: chg
     TYPE(options_obj) :: opts
     TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl, cpcl
 
-    !==== Local variables ====
-    INTEGER :: n1, n2, n3, i, j, k, t
-    INTEGER :: cptnum, num_threads, thread_id
-    INTEGER :: n1_start, n1_end, n1_chunk
-    INTEGER :: estimated_candidates, per_thread
-    INTEGER, ALLOCATABLE :: thread_counts(:)
-    TYPE(cpc), ALLOCATABLE :: cpcl_total(:)
     REAL(q2), DIMENSION(3,3) :: hessianMatrix
     REAL(q2), DIMENSION(3) :: tem, trueR, grad
     INTEGER, DIMENSION(3) :: p
+
+    INTEGER :: n1, n2, n3, cptnum, i, j, k
+    INTEGER :: num_threads, thread_id
+    INTEGER :: n1_start, n1_end, n1_chunk
+    INTEGER :: estimated_candidates
+    INTEGER, ALLOCATABLE :: thread_counts(:)
+    TYPE(cpc), ALLOCATABLE, DIMENSION(:,:), TARGET :: thread_cpcl_all
+
+    ! Thread-private variables
+    INTEGER :: thread_count_local
+    TYPE(cpc), ALLOCATABLE :: thread_cpcl(:)
     LOGICAL :: should_add
 
-    !==== Init ====
+    ! --- Begin Setup ---
     num_threads = omp_get_max_threads()
     CALL omp_set_num_threads(num_threads)
-
-    estimated_candidates = MAX(1, (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10)
-    per_thread = estimated_candidates / num_threads
-
+    estimated_candidates = (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10
+    ALLOCATE(thread_cpcl_all(estimated_candidates / num_threads, num_threads))
     ALLOCATE(thread_counts(num_threads))
     thread_counts = 0
+    cptnum = 0
 
-    ! Preallocate final array
-    IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
-    ALLOCATE(cpcl(estimated_candidates))
+    PRINT *, "Starting GetCPCL_Spatial with", num_threads, "threads"
 
-    !==== Parallel region ====
-    !$OMP PARALLEL PRIVATE(n1,n2,n3,p,trueR,tem,grad,n1_start,n1_end,n1_chunk,thread_id,should_add,i) SHARED(cpcl,thread_counts)
-    INTEGER :: thread_local_count
-    TYPE(cpc) :: local_cpcl(per_thread)
-
+  !$OMP PARALLEL PRIVATE(n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_cpcl,thread_count_local,i,should_add)
     thread_id = omp_get_thread_num() + 1
-    thread_local_count = 0
+    ALLOCATE(thread_cpcl(estimated_candidates / num_threads))
+    thread_count_local = 0
 
     n1_chunk = chg%npts(1) / num_threads
     n1_start = (thread_id - 1) * n1_chunk + 1
@@ -300,50 +297,55 @@
 
           IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
             should_add = .TRUE.
-            DO i = 1, thread_local_count
-              IF (ALL(ABS(local_cpcl(i)%ind - p) <= opts%cp_search_radius)) THEN
+            DO i = 1, thread_count_local
+              IF (ALL(ABS(thread_cpcl(i)%ind - p) <= opts%cp_search_radius)) THEN
                 should_add = .FALSE.
                 EXIT
               END IF
             END DO
+
             IF (should_add) THEN
-              IF (thread_local_count >= per_thread) CYCLE  ! avoid overflow
-              thread_local_count = thread_local_count + 1
-              local_cpcl(thread_local_count)%ind = p
-              local_cpcl(thread_local_count)%grad = grad
-              local_cpcl(thread_local_count)%hasProxy = .FALSE.
-              local_cpcl(thread_local_count)%r = tem
+              IF (thread_count_local >= SIZE(thread_cpcl)) THEN
+                PRINT *, "Thread", thread_id, "exceeded thread_cpcl allocation."
+                CYCLE
+              END IF
+              thread_count_local = thread_count_local + 1
+              thread_cpcl(thread_count_local)%ind = p
+              thread_cpcl(thread_count_local)%grad = grad
+              thread_cpcl(thread_count_local)%hasProxy = .FALSE.
+              thread_cpcl(thread_count_local)%r = tem
             END IF
           END IF
         END DO
       END DO
     END DO
 
-    ! Merge into shared array (non-overlapping blocks)
-    !$OMP CRITICAL
-    i = SUM(thread_counts(1:thread_id - 1))
-    DO j = 1, thread_local_count
-      cpcl(i + j) = local_cpcl(j)
+    thread_counts(thread_id) = thread_count_local
+    DO i = 1, thread_count_local
+      thread_cpcl_all(i, thread_id) = thread_cpcl(i)
     END DO
-    thread_counts(thread_id) = thread_local_count
-    !$OMP END CRITICAL
 
-    !$OMP END PARALLEL
+    DEALLOCATE(thread_cpcl)
+  !$OMP END PARALLEL
 
-    !==== Finalize ====
     cptnum = SUM(thread_counts)
-    IF (cptnum < estimated_candidates) THEN
-      ALLOCATE(cpcl_total(cptnum))
-      cpcl_total = cpcl(1:cptnum)
-      DEALLOCATE(cpcl)
-      cpcl = cpcl_total
-    END IF
 
+    IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
+    ALLOCATE(cpcl(cptnum))
+
+    j = 0
+    DO i = 1, num_threads
+      DO k = 1, thread_counts(i)
+        j = j + 1
+        cpcl(j) = thread_cpcl_all(k, i)
+      END DO
+    END DO
+
+    PRINT *, "Final candidate count: ", cptnum
+    DEALLOCATE(thread_cpcl_all)
     DEALLOCATE(thread_counts)
-    PRINT *, "Final candidate count:", cptnum
 
   END SUBROUTINE GetCPCL_Spatial
-
   
   SUBROUTINE GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
     TYPE(bader_obj) :: bdr
