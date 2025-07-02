@@ -395,8 +395,6 @@
 
     USE omp_lib
     IMPLICIT NONE
-    PRINT *, "Entering GetCPCL_Spatial2"
-
     TYPE(bader_obj), INTENT(IN) :: bdr
     TYPE(charge_obj), INTENT(IN) :: chg
     TYPE(options_obj), INTENT(IN) :: opts
