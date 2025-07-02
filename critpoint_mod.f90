@@ -683,7 +683,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
       temcap = (/1.,1.,1./)
       temscale = (/1.,1.,1./)
       temnormcap = 1.
-      
+      PRINT *,  cpcl(i)%r(1), cpcl(i)%r(2), cpcl(i)%r(3)
       IF (opts%gradMode) THEN
          !uses GradientDescend instead of NRTFGP          
          CALL GradientDescend(bdr,chg,opts,trueR,cpcl(i)%ind,&
