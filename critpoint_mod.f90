@@ -446,8 +446,8 @@
             trueR = (/REAL(n1,q2), REAL(n2,q2), REAL(n3,q2)/)
             tem = CalcTEMGrid(p, chg, grad, hessianMatrix)
             IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
+              IF (MOD(n1, 50) == 0 .AND. thread_id == 1) PRINT *, "Thread", thread_id, "at n1 =", n1
               IF (.NOT. ProxyToCPCandidate2(p, opts, thread_cpcl, thread_count_local, chg)) THEN
-                IF (MOD(n1, 50) == 0 .AND. thread_id == 1) PRINT *, "Thread", thread_id, "at n1 =", n1
                 thread_count_local = thread_count_local + 1
                 thread_cpcl(thread_count_local)%ind = p
                 thread_cpcl(thread_count_local)%grad = grad
