@@ -402,10 +402,10 @@
 
     INTEGER, INTENT(OUT) :: cptnum
 
-    INTEGER, PARAMETER :: INITIAL_CANDIDATES_PER_THREAD = 10000
+    INTEGER, PARAMETER :: MAX_CANDIDATES_PER_THREAD = 100000
     INTEGER :: num_threads, thread_id, i, j, k, n1, n2, n3
     INTEGER :: n1_start, n1_end, n1_chunk
-    INTEGER :: thread_count_local, estimated_candidates
+    INTEGER :: thread_count_local
     INTEGER, ALLOCATABLE :: thread_counts(:)
     TYPE(cpc), ALLOCATABLE, DIMENSION(:,:) :: thread_cpcl_all
     TYPE(cpc), ALLOCATABLE, TARGET :: thread_cpcl_storage(:,:)
@@ -416,64 +416,61 @@
     LOGICAL :: should_add
 
     ! --- Setup ---
+    PRINT *, "yay"
     num_threads = omp_get_max_threads()
-    estimated_candidates = MAX(1, (chg%npts(1) * chg%npts(2) * chg%npts(3)) / 10)
-    ALLOCATE(thread_cpcl_storage(INITIAL_CANDIDATES_PER_THREAD, num_threads))
-    ALLOCATE(thread_cpcl_all(INITIAL_CANDIDATES_PER_THREAD, num_threads))
+    ALLOCATE(thread_cpcl_storage(MAX_CANDIDATES_PER_THREAD, num_threads))
+    ALLOCATE(thread_cpcl_all(MAX_CANDIDATES_PER_THREAD, num_threads))
     ALLOCATE(thread_counts(num_threads))
     thread_counts = 0
     cptnum = 0
 
     PRINT *, "Starting GetCPCL_Spatial2 with", num_threads, "threads"
 
-    !$OMP PARALLEL PRIVATE(n1, n2, n3, p, trueR, tem, grad, thread_id, n1_start, n1_end, n1_chunk, thread_cpcl, thread_count_local, i, should_add)
-        thread_id = omp_get_thread_num() + 1
-        thread_cpcl => thread_cpcl_storage(:, thread_id)
-        thread_count_local = 0
+    !$OMP PARALLEL PRIVATE(n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_cpcl,thread_count_local,i,should_add)
+      thread_id = omp_get_thread_num() + 1
+      thread_cpcl => thread_cpcl_storage(:, thread_id)
+      thread_count_local = 0
 
-        n1_chunk = chg%npts(1) / num_threads
-        n1_start = (thread_id - 1) * n1_chunk + 1
-        IF (thread_id == num_threads) THEN
-            n1_end = chg%npts(1)
-        ELSE
-            n1_end = thread_id * n1_chunk
-        END IF
+      n1_chunk = chg%npts(1) / num_threads
+      n1_start = (thread_id - 1) * n1_chunk + 1
+      IF (thread_id == num_threads) THEN
+        n1_end = chg%npts(1)
+      ELSE
+        n1_end = thread_id * n1_chunk
+      END IF
 
-        DO n1 = n1_start, n1_end
-            DO n2 = 1, chg%npts(2)
-                DO n3 = 1, chg%npts(3)
-                    IF (MOD(n1, 50) == 0 .AND. thread_id == 1) THEN
-                        PRINT *, "Thread", thread_id, "at n1 =", n1
-                        FLUSH(6)  ! Unit 6 is usually stdout
-                    END IF
-                    IF (bdr%volnum(n1, n2, n3) == bdr%bnum + 1) CYCLE
-                    p = (/n1, n2, n3/)
-                    trueR = (/REAL(n1, q2), REAL(n2, q2), REAL(n3, q2)/)
-                    tem = CalcTEMGrid(p, chg, grad, hessianMatrix)
-                    IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
-                        IF (.NOT. ProxyToCPCandidate2(p, opts, thread_cpcl, thread_count_local, chg)) THEN
-                            ! Check if we need to expand thread-local array
-                            IF (thread_count_local >= SIZE(thread_cpcl)) THEN
-                                PRINT *, "Thread", thread_id, "expanding thread-local array..."
-                                ALLOCATE(thread_cpcl_storage(SIZE(thread_cpcl) * 2, num_threads))
-                                thread_cpcl => thread_cpcl_storage(:, thread_id)
-                            END IF
-
-                            thread_count_local = thread_count_local + 1
-                            thread_cpcl(thread_count_local)%ind = p
-                            thread_cpcl(thread_count_local)%grad = grad
-                            thread_cpcl(thread_count_local)%hasProxy = .FALSE.
-                            thread_cpcl(thread_count_local)%r = tem
-                        END IF
-                    END IF
-                END DO
-            END DO
+      DO n1 = n1_start, n1_end
+        DO n2 = 1, chg%npts(2)
+          DO n3 = 1, chg%npts(3)
+            IF (MOD(n1, 50) == 0 .AND. thread_id == 1) THEN
+              PRINT *, "Thread", thread_id, "at n1 =", n1
+              FLUSH(6)  ! Unit 6 is usually stdout
+            END IF
+            IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) CYCLE
+            p = (/n1, n2, n3/)
+            trueR = (/REAL(n1,q2), REAL(n2,q2), REAL(n3,q2)/)
+            tem = CalcTEMGrid(p, chg, grad, hessianMatrix)
+            IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
+              IF (.NOT. ProxyToCPCandidate2(p, opts, thread_cpcl, thread_count_local, chg)) THEN
+                IF (thread_count_local < MAX_CANDIDATES_PER_THREAD) THEN
+                  thread_count_local = thread_count_local + 1
+                  thread_cpcl(thread_count_local)%ind = p
+                  thread_cpcl(thread_count_local)%grad = grad
+                  thread_cpcl(thread_count_local)%hasProxy = .FALSE.
+                  thread_cpcl(thread_count_local)%r = tem
+                ELSE
+                  PRINT *, "WARNING: Thread", thread_id, "exceeded MAX_CANDIDATES_PER_THREAD. Skipping further candidates."
+                END IF
+              END IF
+            END IF
+          END DO
         END DO
+      END DO
 
-        thread_counts(thread_id) = thread_count_local
-        DO i = 1, thread_count_local
-            thread_cpcl_all(i, thread_id) = thread_cpcl(i)
-        END DO
+      thread_counts(thread_id) = thread_count_local
+      DO i = 1, thread_count_local
+        thread_cpcl_all(i, thread_id) = thread_cpcl(i)
+      END DO
     !$OMP END PARALLEL
 
     cptnum = SUM(thread_counts)
@@ -481,10 +478,10 @@
     ALLOCATE(cpcl(cptnum))
     k = 0
     DO i = 1, num_threads
-        DO j = 1, thread_counts(i)
-            k = k + 1
-            cpcl(k) = thread_cpcl_all(j, i)
-        END DO
+      DO j = 1, thread_counts(i)
+        k = k + 1
+        cpcl(k) = thread_cpcl_all(j, i)
+      END DO
     END DO
 
     CALL RemoveGaps(cpcl, cptnum)
