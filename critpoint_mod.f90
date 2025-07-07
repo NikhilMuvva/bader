@@ -490,13 +490,13 @@
     END DO
     DEALLOCATE(cpclt)
 
-    ALLOCATE(cpclt(cptnum))
-    DO i = 1, cptnum
+    ALLOCATE(cpclt(SIZE(cpl)))
+    DO i = 1, SIZE(cpl)
       cpclt(i) = cpl(i)
     END DO
     DEALLOCATE(cpl)
-    ALLOCATE(cpl(cptnum))
-    DO i = 1, cptnum
+    ALLOCATE(cpl(SIZE(cpl)))
+    DO i = 1, SIZE(cpl)
       cpl(i)=cpclt(i)
     END DO
     DEALLOCATE(cpclt)
