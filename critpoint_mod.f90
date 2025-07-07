@@ -684,6 +684,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
     INTEGER, DIMENSION(2) :: connectedAtoms
     INTEGER :: i,cptnum,ucptnum       
     DO i = 1, cptnum
+      PRINT *, "Processing candidate", i
       cpcl(i)%isunique = .FALSE.
       temcap = (/1.,1.,1./)
       temscale = (/1.,1.,1./)
