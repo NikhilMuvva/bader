@@ -1019,6 +1019,11 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
           PRINT *, 'Number of critical point count: ', ucptnum
           PRINT *, 'Number of nuclear, bond, ring and cage  critical point &
             counts : ', ucpCounts(:)
+
+          ! After candidate collection, before ReduceCP
+          DO i = 1, MIN(5, cptnum)
+            PRINT *, "Candidate", i, ":", cpcl(i)%ind, cpcl(i)%grad, cpcl(i)%r
+          END DO
           ! remove duplicate CPs
           isReduced = .FALSE.
           isReducible = .TRUE.
@@ -1027,11 +1032,6 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
               isReduced,LDM_RecordCPRLight,LDM_ReduceCP, isReducible)
           END DO
           
-          PRINT *, 'After a round of reduction'
-          PRINT *, 'Number of atoms: ', ions%nions
-          PRINT *, 'Number of critical point count: ', ucptnum
-          PRINT *, 'Number of nuclear, bond, ring and cage  critical point &
-            counts : ', ucpCounts(:)
           ! After CP numbers are reduced, do density descend and reduce another
           ! round afterwards
           IF (opts%enableDensityDescend .AND. isReducible) THEN
