@@ -502,9 +502,10 @@
     TYPE(options_obj) :: opts
     TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl, cpcl  ! Ensure cpl is ALLOCATABLE
 
-    INTEGER :: cptnum, num_threads, thread_id, i
+    INTEGER :: cptnum, num_threads, thread_id, i, j, total_candidates
     INTEGER, ALLOCATABLE :: thread_cptnums(:)
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:,:) :: thread_cpcls
+    TYPE(cpc), ALLOCATABLE, DIMENSION(:,:), TARGET :: thread_cpcl_storage
+    TYPE(cpc), POINTER :: thread_cpcl(:)
 
     ! Initialize OpenMP variables
     num_threads = omp_get_max_threads()
@@ -512,38 +513,35 @@
 
     ! Preallocate arrays for thread-local results
     ALLOCATE(thread_cptnums(num_threads))
-    ALLOCATE(thread_cpcls(100000, num_threads))  ! Assuming max 100000 candidates per thread
-
-    ! Allocate cpl before passing it to GetCPCL
-    IF (.NOT. ALLOCATED(cpl)) THEN
-      ALLOCATE(cpl(100000))  ! Adjust size as needed
-    END IF
+    ALLOCATE(thread_cpcl_storage(100000, num_threads))  ! Assuming max 100000 candidates per thread
+    thread_cptnums = 0
 
     PRINT *, "Starting GetCPCL_MultithreadedWrapper with ", num_threads, " threads"
 
-    !$OMP PARALLEL PRIVATE(thread_id)
+    !$OMP PARALLEL PRIVATE(thread_id, thread_cpcl, i)
       thread_id = omp_get_thread_num() + 1
-
+      thread_cpcl => thread_cpcl_storage(:, thread_id)
       ! Each thread calls GetCPCL on its portion of the grid
-      CALL GetCPCL(bdr, chg, thread_cpcls(:, thread_id), cpl, opts, thread_cptnums(thread_id))
-
+      CALL GetCPCL(bdr, chg, thread_cpcl, cpl, opts, thread_cptnums(thread_id))
       PRINT *, "Thread ", thread_id, " finished with ", thread_cptnums(thread_id), " candidates"
     !$OMP END PARALLEL
 
     ! Merge results from all threads
-    cptnum = SUM(thread_cptnums)
+    total_candidates = SUM(thread_cptnums)
     IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
-    ALLOCATE(cpcl(cptnum))
+    ALLOCATE(cpcl(total_candidates))
 
     cptnum = 0
     DO i = 1, num_threads
-      cpcl(cptnum + 1:cptnum + thread_cptnums(i)) = thread_cpcls(1:thread_cptnums(i), i)
-      cptnum = cptnum + thread_cptnums(i)
+      DO j = 1, thread_cptnums(i)
+        cptnum = cptnum + 1
+        cpcl(cptnum) = thread_cpcl_storage(j, i)
+      END DO
     END DO
 
     PRINT *, "Total candidates found: ", cptnum
 
-    DEALLOCATE(thread_cptnums, thread_cpcls)
+    DEALLOCATE(thread_cptnums, thread_cpcl_storage)
   END SUBROUTINE GetCPCL_MultithreadedWrapper
 
   SUBROUTINE RemoveGaps(cpcl, cptnum)
