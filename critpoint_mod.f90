@@ -395,9 +395,9 @@
   SUBROUTINE GetCPCL_Spatial2(bdr, chg, cpl, cpcl, opts, cptnum)
     USE omp_lib
     IMPLICIT NONE
-    TYPE(bader_obj), INTENT(IN) :: bdr
-    TYPE(charge_obj), INTENT(IN) :: chg
-    TYPE(options_obj), INTENT(IN) :: opts
+    TYPE(bader_obj) :: bdr
+    TYPE(charge_obj) :: chg
+    TYPE(options_obj) :: opts
     TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl, cpl
 
     INTEGER :: cptnum
@@ -495,6 +495,10 @@
     END IF
 
     PRINT *, "Final candidate count: ", cptnum
+    PRINT *, "First 10 candidate indices:"
+    DO i = 1, cptnum
+      PRINT *, cpcl(i)%ind
+    END DO
   
     DEALLOCATE(thread_cpcl_storage)
     DEALLOCATE(thread_cpcl_all)
