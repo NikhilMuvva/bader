@@ -411,13 +411,13 @@
     TYPE(cpc), ALLOCATABLE, DIMENSION(:,:) :: thread_cpcl_all
     TYPE(cpc), ALLOCATABLE, TARGET :: thread_cpcl_storage(:,:)
     TYPE(cpc), POINTER :: thread_cpcl(:)
-    TYPE(cpc), ALLOCATABLE :: cpcl_temp(:), cpc_temp(:)
+    TYPE(cpc), ALLOCATABLE :: cpcl_temp(:), cpl_temp(:)
     REAL(q2), DIMENSION(3,3) :: hessianMatrix
     REAL(q2), DIMENSION(3) :: tem, trueR, grad
     INTEGER, DIMENSION(3) :: p
     LOGICAL :: should_add
     
-    cpcnum = SIZE(cpc)
+    cplnum = SIZE(cpl)
 
     ! --- Setup ---
     PRINT *, "yay"
@@ -496,12 +496,12 @@
       cpcl = cpcl_temp
       DEALLOCATE(cpcl_temp)
     END IF
-    ALLOCATE(cpc_temp(cptnum))
-    cpc_temp = cpc(1:cpcnum)
-    DEALLOCATE(cpc)
-    ALLOCATE(cpc(cptnum))
-    cpc = cpc_temp
-    DEALLOCATE(cpc_temp)
+    ALLOCATE(cpl_temp(cptnum))
+    cpl_temp = cpl(1:cplnum)
+    DEALLOCATE(cpl)
+    ALLOCATE(cpl(cptnum))
+    cpl = cpl_temp
+    DEALLOCATE(cpl_temp)
     PRINT *, "Final candidate count: ", cptnum
     PRINT *, "First 10 candidate indices:"
     DO i = 1, cptnum
