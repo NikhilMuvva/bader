@@ -479,6 +479,7 @@
       END DO
     END DO
 
+    PRINT *, "Final candidate count: ", cptnum, SIZE(cpcl), SIZE(cpl)
     ALLOCATE(cpclt(cptnum))
     DO i = 1, cptnum
       cpclt(i) = cpcl(i)
@@ -490,6 +491,7 @@
     END DO
     DEALLOCATE(cpclt)
 
+    PRINT *, "Final candidate count: ", cptnum, SIZE(cpcl), SIZE(cpl)
     ALLOCATE(cpclt(SIZE(cpl)))
     DO i = 1, SIZE(cpl)
       cpclt(i) = cpl(i)
