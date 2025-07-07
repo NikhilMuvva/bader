@@ -488,6 +488,7 @@
     END DO
     CALL RemoveGaps(cpcl, cptnum)
     ! Resize to exact size needed
+
     IF (cptnum < SIZE(cpcl)) THEN
       ALLOCATE(cpcl_temp(cptnum))
       cpcl_temp = cpcl(1:cptnum)
@@ -496,17 +497,16 @@
       cpcl = cpcl_temp
       DEALLOCATE(cpcl_temp)
     END IF
-    ALLOCATE(cpl_temp(cptnum))
+
+    ALLOCATE(cpl_temp(SIZE(cpcl)))
     cpl_temp = cpl(1:cplnum)
     DEALLOCATE(cpl)
-    ALLOCATE(cpl(cptnum))
+    ALLOCATE(cpl(SIZE(cpcl)))
     cpl = cpl_temp
     DEALLOCATE(cpl_temp)
-    PRINT *, "Final candidate count: ", cptnum
-    PRINT *, "First 10 candidate indices:"
-    DO i = 1, cptnum
-      PRINT *, cpcl(i)%ind, cpcl(i)%grad, cpcl(i)%hasProxy, cpcl(i)%r
-    END DO
+
+    PRINT *, "Final candidate count: ", cptnum, SIZE(cpcl), SIZE(cpl)
+
   
     DEALLOCATE(thread_cpcl_storage)
     DEALLOCATE(thread_cpcl_all)
