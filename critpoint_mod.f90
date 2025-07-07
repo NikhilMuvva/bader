@@ -483,7 +483,7 @@
         cpcl(k) = thread_cpcl_all(j, i)
       END DO
     END DO
-
+    CALL RemoveGaps(cpcl, cptnum)
     ! Resize to exact size needed
     IF (cptnum < SIZE(cpcl)) THEN
       ALLOCATE(cpcl_temp(cptnum))
@@ -494,8 +494,8 @@
       DEALLOCATE(cpcl_temp)
     END IF
 
-    CALL RemoveGaps(cpcl, cptnum)
-
+    PRINT *, "Final candidate count: ", cptnum
+  
     DEALLOCATE(thread_cpcl_storage)
     DEALLOCATE(thread_cpcl_all)
     DEALLOCATE(thread_counts)
