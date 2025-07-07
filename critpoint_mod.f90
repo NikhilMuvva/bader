@@ -617,6 +617,20 @@
         END DO
       END DO
     END DO OUTER
+    ! Resize cpcl to exact size if needed
+    IF (cptnum < SIZE(cpcl)) THEN
+      ALLOCATE(cpclt(cptnum))
+      cpclt = cpcl(1:cptnum)
+      DEALLOCATE(cpcl)
+      ALLOCATE(cpcl(cptnum))
+      cpcl = cpclt
+      DEALLOCATE(cpclt)
+    END IF
+
+    ! Resize cpl to match cpcl size (empty content)
+    IF (ALLOCATED(cpl)) DEALLOCATE(cpl)
+    ALLOCATE(cpl(SIZE(cpcl)))
+    
     PRINT *, "Final candidate count: ", cptnum
     PRINT *, "First 10 candidate indices:"
     DO i = 1, cptnum
