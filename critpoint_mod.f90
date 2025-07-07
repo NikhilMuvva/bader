@@ -453,7 +453,7 @@
             tem = CalcTEMGrid(p, chg, grad, hessianMatrix)
             
             IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
-              IF (.NOT. ProxyToCPCandidate2(p, opts, thread_cpcl, thread_count_local, chg)) THEN
+              IF (.NOT. ProxyToCPCandidate(p, opts, thread_cpcl, thread_count_local, chg)) THEN
                 IF (thread_count_local < MAX_CANDIDATES_PER_THREAD) THEN
                   thread_count_local = thread_count_local + 1
                   thread_cpcl(thread_count_local)%ind = p
