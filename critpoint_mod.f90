@@ -400,7 +400,7 @@
     TYPE(options_obj), INTENT(IN) :: opts
     TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl, cpl
 
-    INTEGER, INTENT(OUT) :: cptnum
+    INTEGER :: cptnum
 
     INTEGER, PARAMETER :: MAX_CANDIDATES_PER_THREAD = 100000
     INTEGER :: num_threads, thread_id, i, j, k, n1, n2, n3
