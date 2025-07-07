@@ -521,8 +521,13 @@
     !$OMP PARALLEL PRIVATE(thread_id, thread_cpcl, i)
       thread_id = omp_get_thread_num() + 1
       thread_cpcl => thread_cpcl_storage(:, thread_id)
-      ! Each thread calls GetCPCL on its portion of the grid
-      CALL GetCPCL(bdr, chg, thread_cpcl, cpl, opts, thread_cptnums(thread_id))
+      TYPE(cpc), ALLOCATABLE :: thread_cpl(:)
+      ALLOCATE(thread_cpl(10000))  ! or a reasonable initial size
+
+      CALL GetCPCL(bdr, chg, thread_cpl, thread_cpcl, opts, thread_cptnums(thread_id))
+
+      ! Optionally, merge thread_cpl into a global array if needed (not required here)
+      DEALLOCATE(thread_cpl)
       PRINT *, "Thread ", thread_id, " finished with ", thread_cptnums(thread_id), " candidates"
     !$OMP END PARALLEL
 
