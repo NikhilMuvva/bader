@@ -497,7 +497,7 @@
     PRINT *, "Final candidate count: ", cptnum
     PRINT *, "First 10 candidate indices:"
     DO i = 1, cptnum
-      PRINT *, cpcl(i)%ind
+      PRINT *, cpcl(i)%ind, cpcl(i)%grad, cpcl(i)%hasProxy, cpcl(i)%r
     END DO
   
     DEALLOCATE(thread_cpcl_storage)
@@ -621,7 +621,7 @@
     PRINT *, "Final candidate count: ", cptnum
     PRINT *, "First 10 candidate indices:"
     DO i = 1, cptnum
-      PRINT *, cpcl(i)%ind
+      PRINT *, cpcl(i)%ind, cpcl(i)%grad, cpcl(i)%hasProxy, cpcl(i)%r
     END DO
   END SUBROUTINE GetCPCL
 
