@@ -494,12 +494,13 @@
   END SUBROUTINE GetCPCL_Spatial2
 
   ! filepath: /Users/rishabh/Documents/dev/fortran/bader/critpoint_mod.f90
+  ! filepath: /Users/rishabh/Documents/dev/fortran/bader/critpoint_mod.f90
   SUBROUTINE GetCPCL_MultithreadedWrapper(bdr, chg, cpl, cpcl, opts, cptnum)
     USE omp_lib
     TYPE(bader_obj) :: bdr
     TYPE(charge_obj) :: chg
     TYPE(options_obj) :: opts
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl, cpcl
+    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl, cpcl  ! Ensure cpl is ALLOCATABLE
 
     INTEGER :: cptnum, num_threads, thread_id, i
     INTEGER, ALLOCATABLE :: thread_cptnums(:)
@@ -512,6 +513,11 @@
     ! Preallocate arrays for thread-local results
     ALLOCATE(thread_cptnums(num_threads))
     ALLOCATE(thread_cpcls(100000, num_threads))  ! Assuming max 100000 candidates per thread
+
+    ! Allocate cpl before passing it to GetCPCL
+    IF (.NOT. ALLOCATED(cpl)) THEN
+      ALLOCATE(cpl(100000))  ! Adjust size as needed
+    END IF
 
     PRINT *, "Starting GetCPCL_MultithreadedWrapper with ", num_threads, " threads"
 
