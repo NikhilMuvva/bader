@@ -444,9 +444,11 @@
           DO n3 = 1, chg%npts(3)
 
             IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) CYCLE
+            
             p = (/n1, n2, n3/)
             trueR = (/REAL(n1,q2), REAL(n2,q2), REAL(n3,q2)/)
             tem = CalcTEMGrid(p, chg, grad, hessianMatrix)
+            
             IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
               IF (.NOT. ProxyToCPCandidate2(p, opts, thread_cpcl, thread_count_local, chg)) THEN
                 IF (thread_count_local < MAX_CANDIDATES_PER_THREAD) THEN
@@ -480,6 +482,17 @@
         cpcl(k) = thread_cpcl_all(j, i)
       END DO
     END DO
+
+    ! Resize to exact size needed
+    IF (cptnum < SIZE(cpcl)) THEN
+      TYPE(cpc), ALLOCATABLE :: cpcl_temp(:)
+      ALLOCATE(cpcl_temp(cptnum))
+      cpcl_temp = cpcl(1:cptnum)
+      DEALLOCATE(cpcl)
+      ALLOCATE(cpcl(cptnum))
+      cpcl = cpcl_temp
+      DEALLOCATE(cpcl_temp)
+    END IF
 
     CALL RemoveGaps(cpcl, cptnum)
 
