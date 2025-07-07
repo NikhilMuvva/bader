@@ -411,13 +411,12 @@
     TYPE(cpc), ALLOCATABLE, DIMENSION(:,:) :: thread_cpcl_all
     TYPE(cpc), ALLOCATABLE, TARGET :: thread_cpcl_storage(:,:)
     TYPE(cpc), POINTER :: thread_cpcl(:)
-    TYPE(cpc), ALLOCATABLE :: cpcl_temp(:), cpl_temp(:)
+    TYPE(cpc), ALLOCATABLE :: cpcl_temp(:)
     REAL(q2), DIMENSION(3,3) :: hessianMatrix
     REAL(q2), DIMENSION(3) :: tem, trueR, grad
     INTEGER, DIMENSION(3) :: p
     LOGICAL :: should_add
     
-    cplnum = SIZE(cpl)
 
     ! --- Setup ---
     PRINT *, "yay"
@@ -498,12 +497,8 @@
       DEALLOCATE(cpcl_temp)
     END IF
 
-    ALLOCATE(cpl_temp(SIZE(cpcl)))
-    cpl_temp = cpl(1:cplnum)
-    DEALLOCATE(cpl)
+    if (ALLOCATED(cpl)) DEALLOCATE(cpl)
     ALLOCATE(cpl(SIZE(cpcl)))
-    cpl = cpl_temp
-    DEALLOCATE(cpl_temp)
 
     PRINT *, "Final candidate count: ", cptnum, SIZE(cpcl), SIZE(cpl)
 
