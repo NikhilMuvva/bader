@@ -410,6 +410,7 @@
     TYPE(cpc), ALLOCATABLE, DIMENSION(:,:) :: thread_cpcl_all
     TYPE(cpc), ALLOCATABLE, TARGET :: thread_cpcl_storage(:,:)
     TYPE(cpc), POINTER :: thread_cpcl(:)
+    TYPE(cpc), ALLOCATABLE :: cpcl_temp(:)
     REAL(q2), DIMENSION(3,3) :: hessianMatrix
     REAL(q2), DIMENSION(3) :: tem, trueR, grad
     INTEGER, DIMENSION(3) :: p
@@ -485,7 +486,6 @@
 
     ! Resize to exact size needed
     IF (cptnum < SIZE(cpcl)) THEN
-      TYPE(cpc), ALLOCATABLE :: cpcl_temp(:)
       ALLOCATE(cpcl_temp(cptnum))
       cpcl_temp = cpcl(1:cptnum)
       DEALLOCATE(cpcl)
