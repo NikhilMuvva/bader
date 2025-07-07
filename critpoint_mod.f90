@@ -393,6 +393,7 @@
 
   ! Thread-local proximity filtering and merging version
   SUBROUTINE GetCPCL_Spatial2(bdr, chg, cpl, cpcl, opts, cptnum)
+
     USE omp_lib
     IMPLICIT NONE
     TYPE(bader_obj) :: bdr
@@ -401,27 +402,21 @@
     TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl, cpl
 
     INTEGER :: cptnum
-    INTEGER :: cplnum
-
     INTEGER, PARAMETER :: MAX_CANDIDATES_PER_THREAD = 100000
     INTEGER :: num_threads, thread_id, i, j, k, n1, n2, n3
     INTEGER :: n1_start, n1_end, n1_chunk
     INTEGER :: thread_count_local
     INTEGER, ALLOCATABLE :: thread_counts(:)
     TYPE(cpc), ALLOCATABLE, DIMENSION(:,:) :: thread_cpcl_all
-    TYPE(cpc), ALLOCATABLE, TARGET :: thread_cpcl_storage(:,:)
-    TYPE(cpc), POINTER :: thread_cpcl(:)
+    TYPE(cpc), ALLOCATABLE :: thread_cpcl(:)
     TYPE(cpc), ALLOCATABLE :: cpcl_temp(:)
     REAL(q2), DIMENSION(3,3) :: hessianMatrix
     REAL(q2), DIMENSION(3) :: tem, trueR, grad
     INTEGER, DIMENSION(3) :: p
     LOGICAL :: should_add
-    
 
     ! --- Setup ---
-    PRINT *, "yay"
     num_threads = omp_get_max_threads()
-    ALLOCATE(thread_cpcl_storage(MAX_CANDIDATES_PER_THREAD, num_threads))
     ALLOCATE(thread_cpcl_all(MAX_CANDIDATES_PER_THREAD, num_threads))
     ALLOCATE(thread_counts(num_threads))
     thread_counts = 0
@@ -429,9 +424,9 @@
 
     PRINT *, "Starting GetCPCL_Spatial2 with", num_threads, "threads"
 
-    !$OMP PARALLEL PRIVATE(n1,n2,n3,p,trueR,tem,grad,thread_id,n1_start,n1_end,n1_chunk,thread_cpcl,thread_count_local,i,should_add)
+    !$OMP PARALLEL PRIVATE(thread_id, thread_cpcl, thread_count_local, n1, n2, n3, n1_start, n1_end, n1_chunk, p, trueR, tem, grad, i, should_add)
       thread_id = omp_get_thread_num() + 1
-      thread_cpcl => thread_cpcl_storage(:, thread_id)
+      ALLOCATE(thread_cpcl(MAX_CANDIDATES_PER_THREAD))
       thread_count_local = 0
 
       n1_chunk = chg%npts(1) / num_threads
@@ -445,13 +440,10 @@
       DO n1 = n1_start, n1_end
         DO n2 = 1, chg%npts(2)
           DO n3 = 1, chg%npts(3)
-
             IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) CYCLE
-            
             p = (/n1, n2, n3/)
             trueR = (/REAL(n1,q2), REAL(n2,q2), REAL(n3,q2)/)
             tem = CalcTEMGrid(p, chg, grad, hessianMatrix)
-            
             IF (ALL(tem <= 1.5 + opts%par_tem)) THEN
               IF (.NOT. ProxyToCPCandidate(p, opts, thread_cpcl, thread_count_local, chg)) THEN
                 IF (thread_count_local < MAX_CANDIDATES_PER_THREAD) THEN
@@ -473,6 +465,7 @@
       DO i = 1, thread_count_local
         thread_cpcl_all(i, thread_id) = thread_cpcl(i)
       END DO
+      DEALLOCATE(thread_cpcl)
     !$OMP END PARALLEL
 
     cptnum = SUM(thread_counts)
@@ -485,9 +478,8 @@
         cpcl(k) = thread_cpcl_all(j, i)
       END DO
     END DO
-    CALL RemoveGaps(cpcl, cptnum)
-    ! Resize to exact size needed
 
+    ! Resize cpcl to exact size if needed
     IF (cptnum < SIZE(cpcl)) THEN
       ALLOCATE(cpcl_temp(cptnum))
       cpcl_temp = cpcl(1:cptnum)
@@ -497,15 +489,19 @@
       DEALLOCATE(cpcl_temp)
     END IF
 
-    if (ALLOCATED(cpl)) DEALLOCATE(cpl)
+    ! Resize cpl to match cpcl size (empty content)
+    IF (ALLOCATED(cpl)) DEALLOCATE(cpl)
     ALLOCATE(cpl(SIZE(cpcl)))
 
-    PRINT *, "Final candidate count: ", cptnum, SIZE(cpcl), SIZE(cpl)
+    PRINT *, "Final candidate count: ", cptnum
+    PRINT *, "First 10 candidate indices:"
+    DO i = 1, MIN(10, cptnum)
+      PRINT *, cpcl(i)%ind, cpcl(i)%grad, cpcl(i)%hasProxy, cpcl(i)%r
+    END DO
 
-  
-    DEALLOCATE(thread_cpcl_storage)
     DEALLOCATE(thread_cpcl_all)
     DEALLOCATE(thread_counts)
+
   END SUBROUTINE GetCPCL_Spatial2
 
   SUBROUTINE RemoveGaps(cpcl, cptnum)
