@@ -501,6 +501,7 @@
     TYPE(charge_obj) :: chg
     TYPE(options_obj) :: opts
     TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl, cpcl  ! Ensure cpl is ALLOCATABLE
+    TYPE(cpc), ALLOCATABLE :: thread_cpl(:)  ! <-- moved here
 
     INTEGER :: cptnum, num_threads, thread_id, i, j, total_candidates
     INTEGER, ALLOCATABLE :: thread_cptnums(:)
@@ -521,7 +522,6 @@
     !$OMP PARALLEL PRIVATE(thread_id, thread_cpcl, i)
       thread_id = omp_get_thread_num() + 1
       thread_cpcl => thread_cpcl_storage(:, thread_id)
-      TYPE(cpc), ALLOCATABLE :: thread_cpl(:)
       ALLOCATE(thread_cpl(10000))  ! or a reasonable initial size
 
       CALL GetCPCL(bdr, chg, thread_cpl, thread_cpcl, opts, thread_cptnums(thread_id))
