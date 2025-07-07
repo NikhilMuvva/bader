@@ -501,52 +501,63 @@
     TYPE(charge_obj) :: chg
     TYPE(options_obj) :: opts
     TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl, cpcl  ! Ensure cpl is ALLOCATABLE
-    TYPE(cpc), ALLOCATABLE :: thread_cpl(:)  ! <-- moved here
+    TYPE(cpc), ALLOCATABLE :: thread_cpl(:)
+    TYPE(cpc), ALLOCATABLE, DIMENSION(:), ALLOCATABLE :: thread_cpcl_list(:)
+    INTEGER, ALLOCATABLE :: thread_cpcl_counts(:)
 
-    INTEGER :: cptnum, num_threads, thread_id, i, j, total_candidates
-    INTEGER, ALLOCATABLE :: thread_cptnums(:)
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:,:), TARGET :: thread_cpcl_storage
-    TYPE(cpc), POINTER :: thread_cpcl(:)
+    INTEGER :: cptnum, num_threads, thread_id, i, j, k, total_candidates, thread_cpcl_count
 
     ! Initialize OpenMP variables
     num_threads = omp_get_max_threads()
     CALL omp_set_num_threads(num_threads)
 
     ! Preallocate arrays for thread-local results
-    ALLOCATE(thread_cptnums(num_threads))
-    ALLOCATE(thread_cpcl_storage(100000, num_threads))  ! Assuming max 100000 candidates per thread
-    thread_cptnums = 0
+    ALLOCATE(thread_cpcl_list(num_threads))
+    ALLOCATE(thread_cpcl_counts(num_threads))
+    thread_cpcl_counts = 0
 
     PRINT *, "Starting GetCPCL_MultithreadedWrapper with ", num_threads, " threads"
 
-    !$OMP PARALLEL PRIVATE(thread_id, thread_cpcl, i)
+    !$OMP PARALLEL PRIVATE(thread_id, thread_cpl, thread_cpcl, thread_cpcl_count, i)
+      TYPE(cpc), ALLOCATABLE :: thread_cpcl(:)
       thread_id = omp_get_thread_num() + 1
-      thread_cpcl => thread_cpcl_storage(:, thread_id)
       ALLOCATE(thread_cpl(10000))  ! or a reasonable initial size
+      ALLOCATE(thread_cpcl(10000))  ! or a reasonable initial size
+      thread_cpcl_count = 0
 
-      CALL GetCPCL(bdr, chg, thread_cpl, thread_cpcl, opts, thread_cptnums(thread_id))
+      CALL GetCPCL(bdr, chg, thread_cpl, thread_cpcl, opts, thread_cpcl_count)
 
-      ! Optionally, merge thread_cpl into a global array if needed (not required here)
+      ! Store thread_cpcl and thread_cpcl_count for merging after the parallel region
+      !$OMP CRITICAL
+        ALLOCATE(thread_cpcl_list(thread_id)(thread_cpcl_count))
+        DO i = 1, thread_cpcl_count
+          thread_cpcl_list(thread_id)(i) = thread_cpcl(i)
+        END DO
+        thread_cpcl_counts(thread_id) = thread_cpcl_count
+      !$OMP END CRITICAL
+
       DEALLOCATE(thread_cpl)
-      PRINT *, "Thread ", thread_id, " finished with ", thread_cptnums(thread_id), " candidates"
+      DEALLOCATE(thread_cpcl)
+      PRINT *, "Thread ", thread_id, " finished with ", thread_cpcl_count, " candidates"
     !$OMP END PARALLEL
 
     ! Merge results from all threads
-    total_candidates = SUM(thread_cptnums)
+    total_candidates = SUM(thread_cpcl_counts)
     IF (ALLOCATED(cpcl)) DEALLOCATE(cpcl)
     ALLOCATE(cpcl(total_candidates))
 
     cptnum = 0
     DO i = 1, num_threads
-      DO j = 1, thread_cptnums(i)
+      DO j = 1, thread_cpcl_counts(i)
         cptnum = cptnum + 1
-        cpcl(cptnum) = thread_cpcl_storage(j, i)
+        cpcl(cptnum) = thread_cpcl_list(i)(j)
       END DO
+      DEALLOCATE(thread_cpcl_list(i))
     END DO
 
     PRINT *, "Total candidates found: ", cptnum
 
-    DEALLOCATE(thread_cptnums, thread_cpcl_storage)
+    DEALLOCATE(thread_cpcl_list, thread_cpcl_counts)
   END SUBROUTINE GetCPCL_MultithreadedWrapper
 
   SUBROUTINE RemoveGaps(cpcl, cptnum)
