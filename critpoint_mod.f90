@@ -493,7 +493,7 @@
     IF (ALLOCATED(cpl)) DEALLOCATE(cpl)
     ALLOCATE(cpl(SIZE(cpcl)))
 
-    PRINT *, "Final candidate count: ", cptnum
+    PRINT *, "Final candidate count: ", cptnum, SIZE(cpcl), SIZE(cpl)
     PRINT *, "First 10 candidate indices:"
     DO i = 1, MIN(10, cptnum)
       PRINT *, cpcl(i)%ind, cpcl(i)%grad, cpcl(i)%hasProxy, cpcl(i)%r
