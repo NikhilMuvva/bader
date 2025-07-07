@@ -2218,7 +2218,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
       INTEGER :: i
       INTEGER, DIMENSION(3) :: p
       TYPE(options_obj) :: opts
-      TYPE(cpc), POINTER, DIMENSION(:) :: cpl   ! <-- changed from ALLOCATABLE to POINTER
+      TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl   ! <-- changed from POINTER to ALLOCATABLE
       TYPE(charge_obj) :: chg
       INTEGER :: cptnum
 
