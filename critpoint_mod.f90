@@ -401,6 +401,7 @@
     TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl, cpl
 
     INTEGER :: cptnum
+    INTEGER :: cpcnum
 
     INTEGER, PARAMETER :: MAX_CANDIDATES_PER_THREAD = 100000
     INTEGER :: num_threads, thread_id, i, j, k, n1, n2, n3
@@ -415,6 +416,8 @@
     REAL(q2), DIMENSION(3) :: tem, trueR, grad
     INTEGER, DIMENSION(3) :: p
     LOGICAL :: should_add
+    
+    cpcnum = SIZE(cpc)
 
     ! --- Setup ---
     PRINT *, "yay"
@@ -494,7 +497,7 @@
       DEALLOCATE(cpcl_temp)
     END IF
     ALLOCATE(cpc_temp(cptnum))
-    cpc_temp = cpc(1:SIZE(cpc))
+    cpc_temp = cpc(1:cpcnum)
     DEALLOCATE(cpc)
     ALLOCATE(cpc(cptnum))
     cpc = cpc_temp
