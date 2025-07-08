@@ -568,33 +568,33 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
   END SUBROUTINE StaticCheck
 
   SUBROUTINE StaticCheckMultithread(chg, cpl, ucptnum, ucpCounts)
-  USE omp_lib
-  TYPE(charge_obj) :: chg
-  TYPE(cpc), DIMENSION(:) :: cpl
-  INTEGER :: ucptnum
-  INTEGER, DIMENSION(4) :: ucpCounts
+    USE omp_lib
+    TYPE(charge_obj) :: chg
+    TYPE(cpc), DIMENSION(:) :: cpl
+    INTEGER :: ucptnum
+    INTEGER, DIMENSION(4) :: ucpCounts
 
-  INTEGER :: i
-  INTEGER :: localCounts(4)  ! Local counts per thread
+    INTEGER :: i
+    INTEGER :: localCounts(4)  ! Local counts per thread
 
-  localCounts = 0  ! Initialize local thread's copy
+    localCounts = 0  ! Initialize local thread's copy
 
-  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i) REDUCTION(+:localCounts)
-  DO i = 1, ucptnum
-    ! Compute Hessian matrix at cpl(i)%trueind
-    cpl(i)%hessian = CDHessianR(cpl(i)%trueind, chg)
+    !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i) REDUCTION(+:localCounts)
+    DO i = 1, ucptnum
+      ! Compute Hessian matrix at cpl(i)%trueind
+      cpl(i)%hessian = CDHessianR(cpl(i)%trueind, chg)
 
-    ! Compute eigenvalues of Hessian
-    CALL ComputeEigenvalues(cpl(i)%hessian, cpl(i)%eigenvalues)
+      ! Compute eigenvalues of Hessian
+      CALL ComputeEigenvalues(cpl(i)%hessian, cpl(i)%eigenvalues)
 
-    ! Classify CP type based on eigenvalues
-    CALL ClassifyCP(cpl(i), localCounts)
-  END DO
-  !$OMP END PARALLEL DO
+      ! Classify CP type based on eigenvalues
+      CALL ClassifyCP(cpl(i), localCounts)
+    END DO
+    !$OMP END PARALLEL DO
 
-  ! Store final counts
-  ucpCounts = localCounts
-END SUBROUTINE StaticCheckMultithread
+    ! Store final counts
+    ucpCounts = localCounts
+  END SUBROUTINE StaticCheckMultithread
 
 
   SUBROUTINE critpoint_find(bdr,chg,opts,ions,stat)
