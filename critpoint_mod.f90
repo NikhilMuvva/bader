@@ -229,6 +229,9 @@
         cpcl(k) = thread_cpcl_all(j, i)
       END DO
     END DO
+    
+    CALL RemoveGaps(cpcl, cptnum)
+    CALL FilterDuplicateCandidates(cpcl, cptnum)
 
     ALLOCATE(cpclt(cptnum))
     DO i = 1, cptnum
@@ -372,6 +375,8 @@
         END DO
       END DO
     END DO OUTER
+    
+
     
     ALLOCATE(cpclt(cptnum))
     DO i = 1, cptnum
