@@ -230,9 +230,9 @@
       END DO
     END DO
     
-    CALL RemoveGaps(cpcl, cptnum)
+    
     CALL FilterDuplicateCandidates(cpcl, cptnum, opts)
-
+    CALL RemoveGaps(cpcl, cptnum)
     ALLOCATE(cpclt(cptnum))
     DO i = 1, cptnum
       cpclt(i) = cpcl(i)
