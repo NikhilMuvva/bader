@@ -143,7 +143,7 @@
 
 
   ! Thread-local proximity filtering and merging version
-  SUBROUTINE GetCPCL(bdr, chg, cpl, cpcl, opts, cptnum)
+  SUBROUTINE GetCPCL_Spatial(bdr, chg, cpl, cpcl, opts, cptnum)
 
     USE omp_lib
     IMPLICIT NONE
@@ -814,7 +814,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
       ELSE 
         ! Loop through every grid point once and collect a list of points to start
         ! CP searching trajectories into cpcl, the CP candidate list.
-        CALL GetCPCL_Spatial(bdr,chg,cpl,cpcl,opts,cptnum)
+        CALL GetCPCL(bdr,chg,cpl,cpcl,opts,cptnum)
         IF (cptnum > 100000) THEN
           stat = 0
         ELSE 
