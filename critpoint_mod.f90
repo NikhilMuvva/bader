@@ -332,7 +332,7 @@
               CYCLE
             END IF
             cptnum = cptnum + 1
-            
+
             ! Check if the candidate list needs to be expanded.
             IF (cptnum < SIZE(cpcl) - 1 ) THEN
               cpcl(cptnum)%ind = (/n1,n2,n3/)
@@ -408,7 +408,7 @@
     END DO
   END SUBROUTINE GetCPCL
 
- SUBROUTINE SearchWithCPCLMultiThread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
+ SUBROUTINE SearchWithCPCL(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
   USE omp_lib
   TYPE(bader_obj) :: bdr
   TYPE(charge_obj) :: chg
@@ -436,6 +436,7 @@
       CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
     ELSE
       CALL NRTFGP(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
+      
     END IF
 
     IF (cpcl(i)%isUnique) THEN
@@ -449,7 +450,7 @@
     END IF
   END DO
   !$OMP END PARALLEL DO
-END SUBROUTINE SearchWithCPCLMultiThread
+END SUBROUTINE SearchWithCPCLMultithread
 
 SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
     TYPE(bader_obj) :: bdr
@@ -565,6 +566,36 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
     !DEALLOCATE(atom_connectivity)
 
   END SUBROUTINE StaticCheck
+
+  SUBROUTINE StaticCheckMultithread(chg, cpl, ucptnum, ucpCounts)
+  USE omp_lib
+  TYPE(charge_obj) :: chg
+  TYPE(cpc), DIMENSION(:) :: cpl
+  INTEGER :: ucptnum
+  INTEGER, DIMENSION(4) :: ucpCounts
+
+  INTEGER :: i
+  INTEGER :: localCounts(4)  ! Local counts per thread
+
+  localCounts = 0  ! Initialize local thread's copy
+
+  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i) REDUCTION(+:localCounts)
+  DO i = 1, ucptnum
+    ! Compute Hessian matrix at cpl(i)%trueind
+    cpl(i)%hessian = CDHessianR(cpl(i)%trueind, chg)
+
+    ! Compute eigenvalues of Hessian
+    CALL ComputeEigenvalues(cpl(i)%hessian, cpl(i)%eigenvalues)
+
+    ! Classify CP type based on eigenvalues
+    CALL ClassifyCP(cpl(i), localCounts)
+  END DO
+  !$OMP END PARALLEL DO
+
+  ! Store final counts
+  ucpCounts = localCounts
+END SUBROUTINE StaticCheckMultithread
+
 
   SUBROUTINE critpoint_find(bdr,chg,opts,ions,stat)
 ! These are for screening CP due to numerical error. 
@@ -798,7 +829,7 @@ SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
           ! point is within half lattice to another, do not record this new point.
           ALLOCATE(cpRoster(cptnum,3))
           IF (LDM_Trajectories) ALLOCATE(fullcpRoster(cptnum,3))
-          CALL SearchWithCPCLMultiThread(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
+          CALL SearchWithCPCLMultithread(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
 
           PRINT *, 'Number of critical point count: ', ucptnum
           PRINT *, 'Number of nuclear, bond, ring and cage  critical point &
