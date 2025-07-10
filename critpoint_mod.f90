@@ -447,7 +447,7 @@
     END DO OUTER
   END SUBROUTINE GetCPCL
 
- SUBROUTINE SearchWithCPCL(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
+ SUBROUTINE SearchWithCPCLMultithread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
   USE omp_lib
   TYPE(bader_obj) :: bdr
   TYPE(charge_obj) :: chg
@@ -470,6 +470,7 @@
     temcap = (/1.0_q2, 1.0_q2, 1.0_q2/)
     temscale = (/1.0_q2, 1.0_q2, 1.0_q2/)
     temnormcap = 1.0_q2
+
 
     IF (opts%gradMode) THEN
       CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
