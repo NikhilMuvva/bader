@@ -54,112 +54,61 @@
 !NOTE: this subroutine should be called after refine_edge
 !      in order to restrict the calculation to edge points
 !-----------------------------------------------------------------------------------!
-  SUBROUTINE GetCPCL_Multithreaded(bdr,chg,cpl,cpcl,opts,cptnum)
+  SUBROUTINE SearchWithCPCLMultithread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
+    USE omp_lib
     TYPE(bader_obj) :: bdr
     TYPE(charge_obj) :: chg
+    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl, cpl
     TYPE(options_obj) :: opts
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpl,cpcl
-    
-    REAL(q2), DIMENSION(3,3) :: hessianMatrix
-    REAL(q2), DIMENSION(3) :: tem,trueR,grad
 
-    INTEGER, DIMENSION(3) :: p
-    INTEGER :: n1,n2,n3,cptnum,i
+    INTEGER :: i, tid, nthreads, local_ucptnum
+    INTEGER, DIMENSION(4) :: ucpCounts_private
+    REAL(q2), DIMENSION(3,3) :: interpolHessian
+    REAL(q2), DIMENSION(3) :: trueR
+    INTEGER, DIMENSION(2) :: connectedAtoms
+    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl_private
 
-    ! Variables for OpenMP parallelism
-    INTEGER :: num_threads, max_per_thread
-    INTEGER :: cptnum_thread
-    TYPE(cpc), ALLOCATABLE :: cpcl_thread(:)
-    INTEGER :: thread_id
-    TYPE(cpc), ALLOCATABLE :: cpclt(:)
-    
+    !$OMP PARALLEL PRIVATE(i, trueR, interpolHessian, connectedAtoms, local_ucptnum, cpcl_private, tid, ucpCounts_private) SHARED(cpcl, cpl, bdr, chg, opts, cptnum, ucptnum, ucpCounts)
+  
+    tid = omp_get_thread_num()
+    nthreads = omp_get_num_threads()
+    ALLOCATE(cpcl_private(cptnum / nthreads + 100))
+    local_ucptnum = 0
+    ucpCounts_private = 0
 
-    ! Initialize OpenMP variables
-    cptnum = 0
-    num_threads = omp_get_max_threads()
-    max_per_thread = 100000
-    CALL omp_set_num_threads(num_threads)
-    
-    ! Pre-allocate a large enough array to avoid expansion during merging
-    IF (SIZE(cpcl) < num_threads * max_per_thread) THEN
-      DEALLOCATE(cpcl)
-      ALLOCATE(cpcl(num_threads * max_per_thread))
-    END IF
-    
-    PRINT *, "Starting GetCPCL_Multithreaded with ", num_threads, " threads"
-    PRINT *, "max_per_thread = ", max_per_thread
-    PRINT *, "Total memory per thread = ", max_per_thread * 8, " bytes"  ! Rough estimate
+    !$OMP DO
+    DO i = 1, cptnum
+      cpcl(i)%isunique = .FALSE.
 
-    !$OMP PARALLEL PRIVATE (n1,n2,n3,p,trueR,tem,grad,cpcl_thread, cptnum_thread, thread_id)
-      thread_id = omp_get_thread_num() + 1
-      PRINT *, "Thread ", thread_id, " starting work"
-      ALLOCATE(cpcl_thread(max_per_thread))
-      cptnum_thread = 0
-      
-      ! Loop over all points in the grid, split into threads
-      !$OMP DO
-        DO n1 = 1, chg%npts(1)
-          DO n2 = 1, chg%npts(2)
-            DO n3 = 1, chg%npts(3)
-              ! check to see if this point is in the vacuum
-              IF (bdr%volnum(n1,n2,n3) == bdr%bnum + 1) THEN
-                CYCLE
-              END IF
-              
-              p = (/n1,n2,n3/)
-              trueR = (/REAL(n1,q2),REAL(n2,q2),REAL(n3,q2)/)
-              tem = CalcTEMGrid(p,chg,grad,hessianMatrix)
-              
-              IF (ALL(tem <= 1.5 + opts%par_tem )) THEN
-                ! Check if we need to expand thread-local array
-                IF (cptnum_thread >= max_per_thread) THEN
-                  PRINT *, "ERROR: Thread ", thread_id, " exceeded max_per_thread. Aborting."
-                  EXIT
-                END IF
-                
-                ! Store candidate in thread-local array
-                cptnum_thread = cptnum_thread + 1
-                cpcl_thread(cptnum_thread)%ind = (/n1,n2,n3/)
-                cpcl_thread(cptnum_thread)%grad = grad
-                cpcl_thread(cptnum_thread)%hasProxy = .FALSE.
-                cpcl_thread(cptnum_thread)%r = tem
-              END IF
-            END DO
-          END DO
-        END DO
-      !$OMP END DO
-      
-      !$OMP CRITICAL
-        ! Merge thread results into main array
-        DO i = 1, cptnum_thread
-          cptnum = cptnum + 1
-          ! Check if main array needs expansion
-          IF (cptnum > SIZE(cpcl)) THEN
-            ALLOCATE(cpclt(cptnum))
-            DO n1 = 1, cptnum - 1
-              cpclt(n1) = cpcl(n1)
-            END DO
-            DEALLOCATE(cpcl)
-            ALLOCATE(cpcl(cptnum * 2))
-            DO n1 = 1, cptnum - 1
-              cpcl(n1) = cpclt(n1)
-            END DO
-            DEALLOCATE(cpclt)
-          END IF
-          cpcl(cptnum) = cpcl_thread(i)
-        END DO
-      !$OMP END CRITICAL
-      
-      PRINT *, "Thread ", thread_id, " finished with ", cptnum_thread, " candidates"
-      DEALLOCATE(cpcl_thread)
-    !$OMP END PARALLEL
-    
-    ! Single-threaded proximity filtering to remove duplicates
-    PRINT *, "Before filtering: ", cptnum, " candidates"
-    CALL FilterDuplicateCandidates(cpcl, cptnum, opts)
-    PRINT *, "After filtering: ", cptnum, " candidates"
-    
-  END SUBROUTINE GetCPCL_Multithreaded
+      IF (opts%gradMode) THEN
+        CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
+      ELSE
+        CALL NRTFGPMultithread(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
+      END IF
+
+      IF (cpcl(i)%isUnique) THEN
+        cpcl(i)%trueind = trueR
+        interpolHessian = CDHessianR(trueR, chg)
+
+        local_ucptnum = local_ucptnum + 1
+        CALL RecordCPR(trueR, chg, cpcl_private, local_ucptnum, connectedAtoms, ucpCounts_private, opts, interpolHessian, cpcl(i)%ind)
+       END IF
+    END DO
+  !$OMP END DO
+
+  !$OMP CRITICAL
+  DO i = 1, local_ucptnum
+    ucptnum = ucptnum + 1
+    cpl(ucptnum) = cpcl_private(i)
+  END DO
+  ucpCounts = ucpCounts + ucpCounts_private
+  !$OMP END CRITICAL
+
+  DEALLOCATE(cpcl_private)
+  !$OMP END PARALLEL
+
+  END SUBROUTINE SearchWithCPCLMultithread
+
 
   ! Helper subroutine to filter duplicate candidates
   SUBROUTINE FilterDuplicateCandidates(cpcl, cptnum, opts)
