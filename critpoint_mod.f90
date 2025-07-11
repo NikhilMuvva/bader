@@ -343,7 +343,7 @@
     END DO OUTER
   END SUBROUTINE GetCPCL
 
- SUBROUTINE SearchWithCPCLMultithread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
+SUBROUTINE SearchWithCPCLMultithread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
   USE omp_lib
   TYPE(bader_obj) :: bdr
   TYPE(charge_obj) :: chg
@@ -358,35 +358,71 @@
   INTEGER, DIMENSION(4) :: ucpCounts
   INTEGER, DIMENSION(2) :: connectedAtoms 
   INTEGER :: i, cptnum, ucptnum
+  INTEGER :: thread_id, my_ucptnum, nthreads, total_ucptnum
+  INTEGER :: j
 
-  !$OMP PARALLEL DO PRIVATE(i, temcap, temscale, temnormcap, trueR, interpolHessian, connectedAtoms) &
-  !$OMP SHARED(cpcl, cpl, bdr, chg, opts, cptnum, ucpCounts, ucptnum) DEFAULT(SHARED)
+  TYPE(cpc), ALLOCATABLE, DIMENSION(:,:) :: cpl_local
+  INTEGER, ALLOCATABLE, DIMENSION(:) :: count_local
+
+  ! Prepare per-thread buffers
+  nthreads = OMP_GET_MAX_THREADS()
+  ALLOCATE(cpl_local(nthreads, cptnum))
+  ALLOCATE(count_local(nthreads))
+  count_local = 0
+
+  !$OMP PARALLEL PRIVATE(i, temcap, temscale, temnormcap, trueR, interpolHessian, connectedAtoms, my_ucptnum, thread_id)
+  thread_id = OMP_GET_THREAD_NUM()
+
+  !$OMP DO
   DO i = 1, cptnum
     cpcl(i)%isunique = .FALSE.
     temcap = (/1.0_q2, 1.0_q2, 1.0_q2/)
     temscale = (/1.0_q2, 1.0_q2, 1.0_q2/)
     temnormcap = 1.0_q2
 
-
     IF (opts%gradMode) THEN
       CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
     ELSE
       CALL NRTFGPMultithread(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
-      !PRINT *, "Processed point", i, "isUnique:", cpcl(i)%isUnique
     END IF
 
     IF (cpcl(i)%isUnique) THEN
       cpcl(i)%trueind = trueR
       interpolHessian = CDHessianR(trueR, chg)
 
-      !$OMP CRITICAL
-      ucptnum = ucptnum + 1
-      CALL RecordCPR(trueR, chg, cpl, ucptnum, connectedAtoms, ucpCounts, opts, interpolHessian, cpcl(i)%ind)
-      !$OMP END CRITICAL
+      count_local(thread_id + 1) = count_local(thread_id + 1) + 1
+      my_ucptnum = count_local(thread_id + 1)
+
+      CALL RecordCPR(trueR, chg, cpl_local(thread_id + 1, my_ucptnum), &
+                     0, connectedAtoms, ucpCounts, opts, interpolHessian, cpcl(i)%ind)
     END IF
   END DO
-  !$OMP END PARALLEL DO
+  !$OMP END DO
+  !$OMP END PARALLEL
+
+  ! Combine thread-local results
+  total_ucptnum = 0
+  DO i = 1, nthreads
+    total_ucptnum = total_ucptnum + count_local(i)
+  END DO
+
+  ucptnum = total_ucptnum
+  ALLOCATE(cpl(ucptnum))
+
+  j = 0
+  DO i = 1, nthreads
+    DO thread_id = 1, count_local(i)
+      j = j + 1
+      cpl(j) = cpl_local(i, thread_id)
+    END DO
+  END DO
+
+  ! Clean up
+  DEALLOCATE(cpl_local)
+  DEALLOCATE(count_local)
+
 END SUBROUTINE SearchWithCPCLMultithread
+
 
 SUBROUTINE SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
     TYPE(bader_obj) :: bdr
