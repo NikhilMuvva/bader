@@ -54,60 +54,7 @@
 !NOTE: this subroutine should be called after refine_edge
 !      in order to restrict the calculation to edge points
 !-----------------------------------------------------------------------------------!
-  SUBROUTINE SearchWithCPCLMultithread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
-    USE omp_lib
-    TYPE(bader_obj) :: bdr
-    TYPE(charge_obj) :: chg
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl, cpl
-    TYPE(options_obj) :: opts
-
-    INTEGER :: i, tid, nthreads, local_ucptnum
-    INTEGER, DIMENSION(4) :: ucpCounts_private
-    REAL(q2), DIMENSION(3,3) :: interpolHessian
-    REAL(q2), DIMENSION(3) :: trueR
-    INTEGER, DIMENSION(2) :: connectedAtoms
-    TYPE(cpc), ALLOCATABLE, DIMENSION(:) :: cpcl_private
-
-    !$OMP PARALLEL PRIVATE(i, trueR, interpolHessian, connectedAtoms, local_ucptnum, cpcl_private, tid, ucpCounts_private) SHARED(cpcl, cpl, bdr, chg, opts, cptnum, ucptnum, ucpCounts)
-  
-    tid = omp_get_thread_num()
-    nthreads = omp_get_num_threads()
-    ALLOCATE(cpcl_private(cptnum / nthreads + 100))
-    local_ucptnum = 0
-    ucpCounts_private = 0
-
-    !$OMP DO
-    DO i = 1, cptnum
-      cpcl(i)%isunique = .FALSE.
-
-      IF (opts%gradMode) THEN
-        CALL GradientDescend(bdr, chg, opts, trueR, cpcl(i)%ind, cpcl(i)%isUnique, 3000)
-      ELSE
-        CALL NRTFGPMultithread(bdr, chg, opts, trueR, cpcl(i)%isUnique, cpcl(i)%r, cpcl(i)%ind, 1000)
-      END IF
-
-      IF (cpcl(i)%isUnique) THEN
-        cpcl(i)%trueind = trueR
-        interpolHessian = CDHessianR(trueR, chg)
-
-        local_ucptnum = local_ucptnum + 1
-        CALL RecordCPR(trueR, chg, cpcl_private, local_ucptnum, connectedAtoms, ucpCounts_private, opts, interpolHessian, cpcl(i)%ind)
-       END IF
-    END DO
-  !$OMP END DO
-
-  !$OMP CRITICAL
-  DO i = 1, local_ucptnum
-    ucptnum = ucptnum + 1
-    cpl(ucptnum) = cpcl_private(i)
-  END DO
-  ucpCounts = ucpCounts + ucpCounts_private
-  !$OMP END CRITICAL
-
-  DEALLOCATE(cpcl_private)
-  !$OMP END PARALLEL
-
-  END SUBROUTINE SearchWithCPCLMultithread
+ 
 
 
   ! Helper subroutine to filter duplicate candidates
@@ -817,7 +764,7 @@ END SUBROUTINE StaticCheckMultithread
           ! point is within half lattice to another, do not record this new point.
           ALLOCATE(cpRoster(cptnum,3))
           IF (LDM_Trajectories) ALLOCATE(fullcpRoster(cptnum,3))
-          CALL SearchWithCPCLMultithread(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
+          CALL SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
 
           PRINT *, 'Number of critical point count: ', ucptnum
           PRINT *, 'Number of nuclear, bond, ring and cage  critical point &
