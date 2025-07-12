@@ -343,7 +343,7 @@
     END DO OUTER
   END SUBROUTINE GetCPCL
 
-SUBROUTINE SearchWithCPCLMultithread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
+SUBROUTINE SearchWithCPCL(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCounts, opts)
   USE omp_lib
   TYPE(bader_obj) :: bdr
   TYPE(charge_obj) :: chg
