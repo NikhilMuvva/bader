@@ -800,7 +800,7 @@ END SUBROUTINE StaticCheckMultithread
           ! point is within half lattice to another, do not record this new point.
           ALLOCATE(cpRoster(cptnum,3))
           IF (LDM_Trajectories) ALLOCATE(fullcpRoster(cptnum,3))
-          CALL SearchWithCPCL(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
+          CALL SearchWithCPCLMultithread(bdr,chg,cpcl,cpl,cptnum,ucptnum,ucpCounts,opts)
 
           PRINT *, 'Number of critical point count: ', ucptnum
           PRINT *, 'Number of nuclear, bond, ring and cage  critical point &
