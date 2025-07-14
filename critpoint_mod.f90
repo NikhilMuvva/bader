@@ -394,13 +394,12 @@ SUBROUTINE SearchWithCPCLMultithread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCo
       my_ucptnum = count_local(thread_id + 1)
 
       CALL RecordCPR(trueR, chg, cpl_local(thread_id + 1, my_ucptnum), &
-                     0, connectedAtoms, ucpCounts, opts, interpolHessian, cpcl(i)%ind)
+      0, connectedAtoms, ucpCounts, opts, interpolHessian, cpcl(i)%ind)
     END IF
   END DO
   !$OMP END DO
   !$OMP END PARALLEL
-
-  ! Combine thread-local sea
+  ! Combine thread-local
   total_ucptnum = 0
   DO i = 1, nthreads
     total_ucptnum = total_ucptnum + count_local(i)
