@@ -400,7 +400,7 @@ SUBROUTINE SearchWithCPCLMultithread(bdr, chg, cpcl, cpl, cptnum, ucptnum, ucpCo
   !$OMP END DO
   !$OMP END PARALLEL
 
-  ! Combine thread-local results
+  ! Combine thread-local sea
   total_ucptnum = 0
   DO i = 1, nthreads
     total_ucptnum = total_ucptnum + count_local(i)
